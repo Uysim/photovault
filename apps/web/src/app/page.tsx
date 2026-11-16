@@ -23,14 +23,17 @@ export default function Gallery() {
   const load = useCallback(async (c: string | null) => {
     if (loading.current) return;
     loading.current = true;
-    const res = await fetch(`/api/media${c ? `?cursor=${encodeURIComponent(c)}` : ""}`);
-    if (res.ok) {
-      const page: MediaPage = await res.json();
-      setItems((prev) => (c ? [...prev, ...page.items] : page.items));
-      setCursor(page.nextCursor);
-      setDone(!page.nextCursor);
+    try {
+      const res = await fetch(`/api/media${c ? `?cursor=${encodeURIComponent(c)}` : ""}`);
+      if (res.ok) {
+        const page: MediaPage = await res.json();
+        setItems((prev) => (c ? [...prev, ...page.items] : page.items));
+        setCursor(page.nextCursor);
+        setDone(!page.nextCursor);
+      }
+    } finally {
+      loading.current = false;
     }
-    loading.current = false;
   }, []);
 
   useEffect(() => {
@@ -38,11 +41,27 @@ export default function Gallery() {
     else if (session) load(null);
   }, [isPending, session, router, load]);
 
-  const refresh = useCallback(async () => {
-    // load() ignores calls while another load is running, so wait for it.
-    for (let i = 0; i < 20 && loading.current; i++) await new Promise((r) => setTimeout(r, 100));
-    await load(null);
-  }, [load]);
+  // After an upload, fetch page 1 and merge in anything new. Keeps already-loaded pages,
+  // never affects an upload row's status, and is debounced so a batch causes few refetches.
+  // (A file with an old date sorts past page 1 and shows up under "Load more".)
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const refresh = useCallback(() => {
+    if (refreshTimer.current) clearTimeout(refreshTimer.current);
+    refreshTimer.current = setTimeout(async () => {
+      try {
+        const res = await fetch("/api/media");
+        if (!res.ok) return;
+        const page: MediaPage = await res.json();
+        setItems((prev) => {
+          const known = new Set(prev.map((i) => i.id));
+          const added = page.items.filter((i) => !known.has(i.id));
+          return added.length ? [...added, ...prev].sort((a, b) => b.takenAt.localeCompare(a.takenAt)) : prev;
+        });
+      } catch {
+        /* the upload itself succeeded; a later refresh or reload will show it */
+      }
+    }, 300);
+  }, []);
 
   const addFiles = useCallback(
     (files: File[]) => {
@@ -62,7 +81,7 @@ export default function Gallery() {
           try {
             await uploadFile(file, (progress) => patch(key, { progress }));
             patch(key, { status: "done", progress: 1 });
-            await refresh();
+            refresh();
           } catch (e) {
             patch(key, { status: "error", error: e instanceof Error ? e.message : "Upload failed" });
           }
@@ -146,7 +165,7 @@ export default function Gallery() {
         {items.map((i) => (
           <button key={i.id} className="tile" onClick={() => setOpen(i)}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={i.thumbUrl} alt={i.filename} loading="lazy" />
+            <img src={i.thumbUrl} alt={i.filename} loading="lazy" draggable={false} />
             {i.kind === "video" && <span className="badge">▶ {Math.round((i.durationMs ?? 0) / 1000)}s</span>}
           </button>
         ))}

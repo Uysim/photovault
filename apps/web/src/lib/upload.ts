@@ -15,7 +15,10 @@ function canvasToJpeg(source: CanvasImageSource, w: number, h: number): Promise<
   const canvas = document.createElement("canvas");
   canvas.width = THUMB_WIDTH;
   canvas.height = Math.max(1, Math.round((h / w) * THUMB_WIDTH));
-  canvas.getContext("2d")!.drawImage(source, 0, 0, canvas.width, canvas.height);
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = "#fff"; // JPEG has no transparency
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
   return new Promise((resolve, reject) =>
     canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Could not make thumbnail"))), "image/jpeg", 0.7),
   );
@@ -28,23 +31,32 @@ async function imageThumb(file: File): Promise<Thumb> {
   } catch {
     throw new Error("Could not read this image");
   }
-  const blob = await canvasToJpeg(bitmap, bitmap.width, bitmap.height);
-  const out = { blob, width: bitmap.width, height: bitmap.height };
-  bitmap.close();
-  return out;
+  try {
+    const blob = await canvasToJpeg(bitmap, bitmap.width, bitmap.height);
+    return { blob, width: bitmap.width, height: bitmap.height };
+  } finally {
+    bitmap.close();
+  }
 }
 
 async function videoThumb(file: File): Promise<Thumb> {
   const url = URL.createObjectURL(file);
   try {
     const video = document.createElement("video");
-    video.preload = "metadata";
+    video.preload = "auto";
     video.muted = true;
     video.playsInline = true;
     video.src = url;
     await new Promise<void>((resolve, reject) => {
-      video.onloadeddata = () => resolve();
-      video.onerror = () => reject(new Error("Could not read this video"));
+      const timer = setTimeout(() => reject(new Error("Could not read this video")), 15000);
+      video.onloadeddata = () => {
+        clearTimeout(timer);
+        resolve();
+      };
+      video.onerror = () => {
+        clearTimeout(timer);
+        reject(new Error("Could not read this video"));
+      };
     });
     await new Promise<void>((resolve) => {
       video.onseeked = () => resolve();
