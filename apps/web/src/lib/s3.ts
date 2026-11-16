@@ -7,7 +7,11 @@ import {
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
-export const s3 = new S3Client({ region: process.env.AWS_REGION });
+// Set S3_ENDPOINT (e.g. http://localhost:9000) to use MinIO or another S3-compatible store.
+export const s3 = new S3Client({
+  region: process.env.AWS_REGION,
+  ...(process.env.S3_ENDPOINT && { endpoint: process.env.S3_ENDPOINT, forcePathStyle: true }),
+});
 const Bucket = process.env.S3_BUCKET!;
 
 const UPLOAD_TTL = 60 * 60; // 1h to finish a big video upload
