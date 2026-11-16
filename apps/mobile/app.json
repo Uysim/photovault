@@ -10,14 +10,19 @@
       "bundleIdentifier": "com.example.photovault",
       "supportsTablet": true
     },
-    "android": { "package": "com.example.photovault" },
+    "android": {
+      "package": "com.example.photovault"
+    },
     "plugins": [
       "expo-router",
       "expo-secure-store",
       [
         "expo-image-picker",
-        { "photosPermission": "PhotoVault needs access to your photos and videos so you can upload them." }
-      ]
+        {
+          "photosPermission": "PhotoVault needs access to your photos and videos so you can upload them."
+        }
+      ],
+      "expo-video"
     ]
   }
 }

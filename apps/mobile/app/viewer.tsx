@@ -6,7 +6,7 @@ import { api } from "../src/api";
 
 function Video({ url }: { url: string }) {
   const player = useVideoPlayer(url, (p) => { p.play(); });
-  return <VideoView player={player} style={s.media} allowsFullscreen />;
+  return <VideoView player={player} style={s.media} fullscreenOptions={{ enable: true }} />;
 }
 
 export default function Viewer() {
