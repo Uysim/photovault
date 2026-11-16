@@ -9,3 +9,7 @@ input, button { padding: 8px; font: inherit; }
 .modal { position: fixed; inset: 0; background: #000e; display: grid; place-items: center; z-index: 10; }
 .modal img, .modal video { max-width: 95vw; max-height: 85vh; }
 .bar { display: flex; gap: 8px; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.drop-overlay { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; font-size: 24px; background: #0008; color: #fff; border: 4px dashed #fff; pointer-events: none; }
+.uploads { display: grid; gap: 4px; margin-bottom: 12px; }
+.upload-row { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+.upload-error { color: #d33; }

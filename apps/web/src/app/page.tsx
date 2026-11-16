@@ -3,6 +3,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { MediaItem, MediaPage } from "@photovault/shared";
 import { authClient } from "@/lib/auth-client";
+import { uploadFile, validateFile } from "@/lib/upload";
+
+type UploadRow = { key: string; name: string; progress: number; status: "uploading" | "done" | "error"; error?: string };
+const MAX_PARALLEL = 3;
 
 export default function Gallery() {
   const router = useRouter();
@@ -12,6 +16,9 @@ export default function Gallery() {
   const [done, setDone] = useState(false);
   const [open, setOpen] = useState<MediaItem | null>(null);
   const loading = useRef(false);
+  const [uploads, setUploads] = useState<UploadRow[]>([]);
+  const [dragging, setDragging] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async (c: string | null) => {
     if (loading.current) return;
@@ -31,6 +38,69 @@ export default function Gallery() {
     else if (session) load(null);
   }, [isPending, session, router, load]);
 
+  const refresh = useCallback(async () => {
+    // load() ignores calls while another load is running, so wait for it.
+    for (let i = 0; i < 20 && loading.current; i++) await new Promise((r) => setTimeout(r, 100));
+    await load(null);
+  }, [load]);
+
+  const addFiles = useCallback(
+    (files: File[]) => {
+      const rows = files.map((f, i) => ({ file: f, key: `${Date.now()}-${i}-${f.name}` }));
+      setUploads((prev) => [...prev, ...rows.map((r) => ({ key: r.key, name: r.file.name, progress: 0, status: "uploading" as const }))]);
+      const patch = (key: string, p: Partial<UploadRow>) => setUploads((prev) => prev.map((u) => (u.key === key ? { ...u, ...p } : u)));
+
+      const queue = [...rows];
+      const worker = async () => {
+        for (let next = queue.shift(); next; next = queue.shift()) {
+          const { file, key } = next;
+          const invalid = validateFile(file);
+          if (invalid) {
+            patch(key, { status: "error", error: invalid });
+            continue;
+          }
+          try {
+            await uploadFile(file, (progress) => patch(key, { progress }));
+            patch(key, { status: "done", progress: 1 });
+            await refresh();
+          } catch (e) {
+            patch(key, { status: "error", error: e instanceof Error ? e.message : "Upload failed" });
+          }
+        }
+      };
+      for (let i = 0; i < Math.min(MAX_PARALLEL, rows.length); i++) void worker();
+    },
+    [refresh],
+  );
+
+  useEffect(() => {
+    const hasFiles = (e: DragEvent) => !!e.dataTransfer?.types.includes("Files");
+    const over = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      setDragging(true);
+    };
+    const leave = (e: DragEvent) => {
+      if (e.relatedTarget === null) setDragging(false);
+    };
+    const drop = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      setDragging(false);
+      addFiles(Array.from(e.dataTransfer!.files));
+    };
+    window.addEventListener("dragenter", over);
+    window.addEventListener("dragover", over);
+    window.addEventListener("dragleave", leave);
+    window.addEventListener("drop", drop);
+    return () => {
+      window.removeEventListener("dragenter", over);
+      window.removeEventListener("dragover", over);
+      window.removeEventListener("dragleave", leave);
+      window.removeEventListener("drop", drop);
+    };
+  }, [addFiles]);
+
   async function remove(item: MediaItem) {
     if (!confirm("Delete this item permanently?")) return;
     await fetch(`/api/media/${item.id}`, { method: "DELETE" });
@@ -45,9 +115,33 @@ export default function Gallery() {
         <h1>PhotoVault</h1>
         <span>
           {(session.user as { role?: string }).role === "admin" && <a href="/admin">Invites</a>}{" "}
+          <button onClick={() => fileInput.current?.click()}>Upload</button>{" "}
           <button onClick={() => authClient.signOut().then(() => router.push("/login"))}>Sign out</button>
+          <input
+            ref={fileInput}
+            type="file"
+            multiple
+            accept="image/*,video/*"
+            hidden
+            onChange={(e) => {
+              addFiles(Array.from(e.target.files ?? []));
+              e.target.value = "";
+            }}
+          />
         </span>
       </div>
+      {dragging && <div className="drop-overlay">Drop to upload</div>}
+      {uploads.length > 0 && (
+        <div className="uploads">
+          {uploads.map((u) => (
+            <div key={u.key} className="upload-row">
+              <span>{u.name}</span>
+              {u.status === "error" ? <span className="upload-error">{u.error}</span> : <progress value={u.progress} max={1} />}
+            </div>
+          ))}
+          <button onClick={() => setUploads((prev) => prev.filter((u) => u.status === "uploading"))}>Clear</button>
+        </div>
+      )}
       <div className="grid">
         {items.map((i) => (
           <button key={i.id} className="tile" onClick={() => setOpen(i)}>
@@ -58,7 +152,7 @@ export default function Gallery() {
         ))}
       </div>
       {!done && <p><button onClick={() => load(cursor)}>Load more</button></p>}
-      {items.length === 0 && done && <p>No media yet. Upload from the mobile app.</p>}
+      {items.length === 0 && done && <p>No media yet. Drop files here or click Upload.</p>}
       {open && (
         <div className="modal" onClick={() => setOpen(null)}>
           <div onClick={(e) => e.stopPropagation()}>
