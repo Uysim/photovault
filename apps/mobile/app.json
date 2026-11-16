@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "PhotoVault",
+    "slug": "photovault",
+    "scheme": "photovault",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "bundleIdentifier": "com.example.photovault",
+      "supportsTablet": true
+    },
+    "android": { "package": "com.example.photovault" },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        { "photosPermission": "PhotoVault needs access to your photos and videos so you can upload them." }
+      ]
+    ]
+  }
+}
