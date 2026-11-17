@@ -1,8 +1,11 @@
-import { Alert, Button, StyleSheet, View } from "react-native";
+import { useState } from "react";
+import { Alert, StyleSheet, View } from "react-native";
 import { Image } from "expo-image";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { api } from "../src/api";
+import { color } from "../src/theme";
+import { Btn } from "../src/ui";
 
 function Video({ url }: { url: string }) {
   const player = useVideoPlayer(url, (p) => { p.play(); });
@@ -12,17 +15,22 @@ function Video({ url }: { url: string }) {
 export default function Viewer() {
   const { id, url, kind } = useLocalSearchParams<{ id: string; url: string; kind: string }>();
   const router = useRouter();
+  const [deleting, setDeleting] = useState(false);
 
   function confirmDelete() {
-    Alert.alert("Delete permanently?", "This removes it from storage.", [
+    Alert.alert("Delete permanently?", "This removes it from storage and can't be undone.", [
       { text: "Cancel", style: "cancel" },
       {
         text: "Delete",
         style: "destructive",
         onPress: async () => {
-          const res = await api(`/api/media/${id}`, { method: "DELETE" });
-          if (res.ok) router.back();
-          else Alert.alert("Delete failed");
+          setDeleting(true);
+          try {
+            const res = await api(`/api/media/${id}`, { method: "DELETE" });
+            if (res.ok) return router.back();
+          } catch {}
+          setDeleting(false);
+          Alert.alert("Couldn't delete", "Check your connection and try again.");
         },
       },
     ]);
@@ -30,13 +38,23 @@ export default function Viewer() {
 
   return (
     <View style={s.c}>
-      {kind === "video" ? <Video url={url} /> : <Image source={url} style={s.media} contentFit="contain" />}
-      <Button title="Delete" color="crimson" onPress={confirmDelete} />
+      <Stack.Screen
+        options={{
+          headerStyle: { backgroundColor: color.viewer },
+          headerLeft: () => <Btn compact kind="quiet" title="Close" onPress={() => router.back()} />,
+          headerRight: () => <Btn compact kind="danger" title="Delete" busy={deleting} onPress={confirmDelete} />,
+        }}
+      />
+      {kind === "video" ? (
+        <Video url={url} />
+      ) : (
+        <Image source={url} style={s.media} contentFit="contain" transition={150} accessibilityLabel="Photo" />
+      )}
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  c: { flex: 1, backgroundColor: "#000", justifyContent: "center" },
+  c: { flex: 1, backgroundColor: color.viewer, justifyContent: "center" },
   media: { flex: 1 },
 });

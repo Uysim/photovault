@@ -5,7 +5,7 @@
     "scheme": "photovault",
     "version": "0.1.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "dark",
     "ios": {
       "bundleIdentifier": "com.example.photovault",
       "supportsTablet": true
@@ -25,7 +25,8 @@
           "photosPermission": "PhotoVault needs access to your photos and videos so you can upload them."
         }
       ],
-      "expo-video"
+      "expo-video",
+      "expo-font"
     ],
     "extra": {
       "router": {

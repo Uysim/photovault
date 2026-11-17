@@ -127,14 +127,24 @@ export default function Gallery() {
     setOpen(null);
   }
 
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(null);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  const fmtDate = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+  const uploading = uploads.some((u) => u.status === "uploading");
+
   if (!session) return null;
   return (
     <>
       <div className="bar">
         <h1>PhotoVault</h1>
-        <span>
-          {(session.user as { role?: string }).role === "admin" && <a href="/admin">Invites</a>}{" "}
-          <button onClick={() => fileInput.current?.click()}>Upload</button>{" "}
+        <div className="bar-actions">
+          {(session.user as { role?: string }).role === "admin" && <a className="btn" href="/admin">Invites</a>}
+          <button className="primary" onClick={() => fileInput.current?.click()}>Upload</button>
           <button onClick={() => authClient.signOut().then(() => router.push("/login"))}>Sign out</button>
           <input
             ref={fileInput}
@@ -147,38 +157,65 @@ export default function Gallery() {
               e.target.value = "";
             }}
           />
-        </span>
+        </div>
       </div>
-      {dragging && <div className="drop-overlay">Drop to upload</div>}
-      {uploads.length > 0 && (
-        <div className="uploads">
-          {uploads.map((u) => (
-            <div key={u.key} className="upload-row">
-              <span>{u.name}</span>
-              {u.status === "error" ? <span className="upload-error">{u.error}</span> : <progress value={u.progress} max={1} />}
+      {dragging && <div className="drop-overlay">Drop to add to the album</div>}
+      <div className="page">
+        <div className={`dropstrip${dragging || uploading ? " active" : ""}`}>
+          <p>Drop photos and videos anywhere on this page, or press Upload.</p>
+          {uploads.length > 0 && (
+            <div className="uploads" aria-live="polite">
+              {uploads.map((u) => (
+                <div key={u.key} className={`upload-row${u.status === "error" ? " fail" : ""}`}>
+                  <span className="name">{u.name}</span>
+                  {u.status === "error" ? (
+                    <span className="error">{u.error}</span>
+                  ) : (
+                    <>
+                      <progress value={u.progress} max={1} aria-label={`Uploading ${u.name}`} />
+                      <span className="state">{u.status === "done" ? "Added" : `${Math.round(u.progress * 100)}%`}</span>
+                    </>
+                  )}
+                </div>
+              ))}
+              <div>
+                <button onClick={() => setUploads((prev) => prev.filter((u) => u.status === "uploading"))}>Clear finished</button>
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="grid">
+          {items.map((i) => (
+            <div key={i.id} className="cell">
+              <button className="tile" onClick={() => setOpen(i)} aria-label={`Open ${i.filename}`}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={i.thumbUrl} alt="" loading="lazy" draggable={false} />
+              </button>
+              <div className="caption">
+                <span>{fmtDate(i.takenAt)}</span>
+                {i.kind === "video" && <span>Video {Math.round((i.durationMs ?? 0) / 1000)}s</span>}
+              </div>
             </div>
           ))}
-          <button onClick={() => setUploads((prev) => prev.filter((u) => u.status === "uploading"))}>Clear</button>
         </div>
-      )}
-      <div className="grid">
-        {items.map((i) => (
-          <button key={i.id} className="tile" onClick={() => setOpen(i)}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={i.thumbUrl} alt={i.filename} loading="lazy" draggable={false} />
-            {i.kind === "video" && <span className="badge">▶ {Math.round((i.durationMs ?? 0) / 1000)}s</span>}
-          </button>
-        ))}
+        {!done && (
+          <div className="more">
+            <button onClick={() => load(cursor)}>Load more</button>
+          </div>
+        )}
+        {items.length === 0 && done && <p className="empty">This page is empty. Add the first photos or videos with Upload or by dropping them here.</p>}
       </div>
-      {!done && <p><button onClick={() => load(cursor)}>Load more</button></p>}
-      {items.length === 0 && done && <p>No media yet. Drop files here or click Upload.</p>}
       {open && (
-        <div className="modal" onClick={() => setOpen(null)}>
-          <div onClick={(e) => e.stopPropagation()}>
+        <div className="modal" role="dialog" aria-modal="true" aria-label={open.filename} onClick={() => setOpen(null)}>
+          <div className="viewer" onClick={(e) => e.stopPropagation()}>
             {open.kind === "video" ? <video src={open.url} controls autoPlay /> : /* eslint-disable-next-line @next/next/no-img-element */ <img src={open.url} alt={open.filename} />}
-            <p style={{ color: "#fff" }}>
-              {open.filename} <button onClick={() => remove(open)}>Delete</button> <button onClick={() => setOpen(null)}>Close</button>
-            </p>
+            <div className="viewer-bar">
+              <span className="name">{open.filename} · {fmtDate(open.takenAt)}</span>
+              <span className="bar-actions">
+                <button className="danger" onClick={() => remove(open)}>Delete</button>
+                <button onClick={() => setOpen(null)} autoFocus>Close</button>
+              </span>
+            </div>
           </div>
         </div>
       )}

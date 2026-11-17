@@ -14,9 +14,9 @@ export default function Admin() {
   return (
     <>
       <h1>Invites</h1>
-      <button onClick={create}>Create invite (valid 7 days)</button>
+      <button className="primary" onClick={create}>Create invite (valid 7 days)</button>
       {code && <p>Code: <code>{code}</code></p>}
-      {error && <p style={{ color: "crimson" }}>{error}</p>}
+      {error && <p className="error">{error}</p>}
       <p><a href="/">Back</a></p>
     </>
   );

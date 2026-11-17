@@ -35,8 +35,8 @@ export default function LoginPage() {
         <input name="email" type="email" placeholder="Email" required />
         <input name="password" type="password" placeholder="Password" minLength={8} required />
         {mode === "up" && <input name="inviteCode" placeholder="Invite code" />}
-        <button type="submit">{mode === "in" ? "Sign in" : "Sign up"}</button>
-        {error && <p style={{ color: "crimson" }}>{error}</p>}
+        <button type="submit" className="primary">{mode === "in" ? "Sign in" : "Sign up"}</button>
+        {error && <p className="error">{error}</p>}
       </form>
       <p>
         <button onClick={() => setMode(mode === "in" ? "up" : "in")}>

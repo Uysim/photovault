@@ -1,0 +1,104 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-17T00:00:00Z",
+  "title": "Design System: PhotoVault Web",
+  "extensions": {
+    "colorMeta": {
+      "gold": { "role": "primary", "displayName": "Album Gold", "canonical": "#d8a23c", "tonalRamp": ["#2a1e07", "#4f3a0e", "#76571a", "#9d7728", "#d8a23c", "#e6b34f", "#f0cc85", "#f9e7c3"] },
+      "album-cloth": { "role": "neutral", "displayName": "Album Cloth", "canonical": "#12251e", "tonalRamp": ["#0a1511", "#12251e", "#24402f", "#3a5e48", "#5a7d66", "#869f8e", "#b6c7bb", "#e2eae4"] },
+      "black-page": { "role": "neutral", "displayName": "Black Page", "canonical": "#1a1917", "tonalRamp": ["#0b0b0a", "#1a1917", "#242220", "#3a3835", "#6f6a5d", "#b3ac9c", "#efe9dc", "#faf7f0"] },
+      "white-ink": { "role": "neutral", "displayName": "White Ink", "canonical": "#efe9dc", "tonalRamp": ["#242220", "#6f6a5d", "#b3ac9c", "#d3cdbf", "#efe9dc", "#f5f1e8", "#faf8f2", "#fdfcf9"] },
+      "error-coral": { "role": "error", "displayName": "Error Coral", "canonical": "#f19a88", "tonalRamp": ["#3a1810", "#6a2e22", "#984636", "#c4614e", "#f19a88", "#f4b3a5", "#f8cfc6", "#fcebe7"] }
+    },
+    "typographyMeta": {
+      "title": { "displayName": "Title", "purpose": "Wordmark h1 in the top bar." },
+      "body": { "displayName": "Body", "purpose": "Default text." },
+      "label": { "displayName": "Label", "purpose": "Buttons." },
+      "queue": { "displayName": "Queue", "purpose": "Upload rows and viewer bar." },
+      "caption": { "displayName": "Caption", "purpose": "Date and video duration under tiles, tracked, tabular." }
+    },
+    "shadows": [],
+    "motion": [
+      { "name": "ease", "value": "cubic-bezier(0.22, 1, 0.36, 1)", "purpose": "All state transitions, 0.2s; progress width 0.3s." },
+      { "name": "corner-grow", "value": "--c and --s over 0.2s", "purpose": "Photo corners turn gold and grow 16px to 22px on hover/focus." },
+      { "name": "reduced-motion", "value": "transition: none", "purpose": "All transitions disabled under prefers-reduced-motion." }
+    ],
+    "breakpoints": [
+      { "name": "small", "value": "520px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button", "kind": "button", "refersTo": "button-primary",
+      "description": "The single gold press target per view.",
+      "html": "<button class=\"ds-btn-primary\">Upload</button>",
+      "css": ".ds-btn-primary{font:inherit;font-weight:600;font-size:.9375rem;padding:8px 16px;min-height:40px;border:1px solid #d8a23c;background:#d8a23c;color:#1c1405;border-radius:6px;cursor:pointer;transition:background .2s cubic-bezier(.22,1,.36,1)}.ds-btn-primary:hover{background:#e6b34f;border-color:#e6b34f}.ds-btn-primary:focus-visible{outline:2px solid #d8a23c;outline-offset:3px}"
+    },
+    {
+      "name": "Default Button", "kind": "button", "refersTo": "button",
+      "description": "Outlined secondary action.",
+      "html": "<button class=\"ds-btn\">Invites</button>",
+      "css": ".ds-btn{font:inherit;font-weight:600;font-size:.9375rem;padding:8px 16px;min-height:40px;border:1px solid #b3ac9c;background:transparent;color:#efe9dc;border-radius:6px;cursor:pointer;transition:background .2s,border-color .2s}.ds-btn:hover{border-color:#efe9dc;background:#ffffff12}.ds-btn:focus-visible{outline:2px solid #d8a23c;outline-offset:3px}"
+    },
+    {
+      "name": "Danger Button", "kind": "button", "refersTo": "button-danger",
+      "description": "Destructive action in the viewer.",
+      "html": "<button class=\"ds-btn-danger\">Delete</button>",
+      "css": ".ds-btn-danger{font:inherit;font-weight:600;font-size:.9375rem;padding:8px 16px;min-height:40px;border:1px solid #f19a88;background:transparent;color:#f19a88;border-radius:6px;cursor:pointer}.ds-btn-danger:hover{background:#ffffff12}.ds-btn-danger:focus-visible{outline:2px solid #d8a23c;outline-offset:3px}"
+    },
+    {
+      "name": "Text Input", "kind": "input", "refersTo": "input",
+      "description": "Dark field with cloth hairline, gold border on focus.",
+      "html": "<input class=\"ds-input\" placeholder=\"Email\">",
+      "css": ".ds-input{font:inherit;padding:9px 12px;min-height:40px;border-radius:6px;border:1px solid #24402f;background:#1a1917;color:#efe9dc}.ds-input::placeholder{color:#b3ac9c}.ds-input:focus-visible{border-color:#d8a23c;outline:2px solid #d8a23c;outline-offset:3px}"
+    },
+    {
+      "name": "Drop Strip", "kind": "custom", "refersTo": "dropstrip",
+      "description": "Dashed drop target that doubles as the upload queue; gold border when active.",
+      "html": "<div class=\"ds-drop\"><p>Drop photos here or use Upload.</p></div>",
+      "css": ".ds-drop{border:1px dashed #6f6a5d;border-radius:4px;padding:14px 16px;color:#b3ac9c;background:#1a1917;font-family:inherit}.ds-drop p{margin:0}.ds-drop:hover{border-color:#d8a23c;color:#efe9dc}"
+    },
+    {
+      "name": "Photo Tile with Caption", "kind": "card", "refersTo": "tile",
+      "description": "Square print seated in four photo corners; corners turn gold and grow on hover/focus. Caption is date plus video duration.",
+      "html": "<div class=\"ds-cell\"><button class=\"ds-tile\" aria-label=\"Open photo\"></button><div class=\"ds-caption\"><span>Nov 12, 2026</span><span>Video 14s</span></div></div>",
+      "css": "@property --c{syntax:'<color>';inherits:false;initial-value:#6f6a5d}@property --s{syntax:'<length>';inherits:false;initial-value:16px}.ds-cell{display:grid;gap:6px;width:150px}.ds-tile{position:relative;aspect-ratio:1;padding:0;border:0;border-radius:0;background:#242220;display:block;cursor:pointer}.ds-tile::after{content:'';position:absolute;inset:0;pointer-events:none;--c:#6f6a5d;--s:16px;background:linear-gradient(135deg,var(--c) 50%,transparent 50%) top left/var(--s) var(--s) no-repeat,linear-gradient(225deg,var(--c) 50%,transparent 50%) top right/var(--s) var(--s) no-repeat,linear-gradient(45deg,var(--c) 50%,transparent 50%) bottom left/var(--s) var(--s) no-repeat,linear-gradient(315deg,var(--c) 50%,transparent 50%) bottom right/var(--s) var(--s) no-repeat;transition:--c .2s,--s .2s}.ds-tile:hover::after,.ds-tile:focus-visible::after{--c:#d8a23c;--s:22px}.ds-caption{font-size:.75rem;letter-spacing:.04em;color:#b3ac9c;font-variant-numeric:tabular-nums;display:flex;justify-content:space-between;gap:0 8px}"
+    },
+    {
+      "name": "Upload Row", "kind": "custom", "refersTo": "dropstrip",
+      "description": "Queue row: name, gold progress bar on raise track, tabular state.",
+      "html": "<div class=\"ds-row\"><span class=\"ds-name\">IMG_2041.jpg</span><progress value=\"0.6\" max=\"1\"></progress><span class=\"ds-state\">60%</span></div>",
+      "css": ".ds-row{display:grid;grid-template-columns:minmax(0,1fr) 160px 8ch;gap:12px;align-items:center;font-size:.875rem;color:#efe9dc}.ds-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ds-row progress{width:100%;height:6px;appearance:none;border:0;background:#242220;border-radius:3px;overflow:hidden}.ds-row progress::-webkit-progress-bar{background:#242220}.ds-row progress::-webkit-progress-value{background:#d8a23c}.ds-state{font-variant-numeric:tabular-nums;text-align:right;color:#b3ac9c}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Black-Page Album",
+    "overview": "PhotoVault is the album the group keeps together, not a file manager. Deep bottle-green album cloth surrounds black card pages; each print is seated in four photo corners and captioned in small white ink. Dark only. Frame numbers were dropped (they shift as uploads arrive); the viewer stays dark and closes on Escape.",
+    "keyCharacteristics": [
+      "Committed shell: green cloth around black pages.",
+      "Signature move: photo corners, gold on hover/focus.",
+      "One gold, only on pressable or in-progress things.",
+      "Whole-cell grid that repacks at any width.",
+      "Flat, tonal depth; no shadows."
+    ],
+    "rules": [
+      { "name": "The Gold-Means-Press Rule", "body": "Gold appears only on pressable controls, focus, selection and in-progress state. Never decorative.", "section": "colors" },
+      { "name": "The Photos-Glow Rule", "body": "Page black stays neutral and warm-grey so no UI color competes with photo color.", "section": "colors" },
+      { "name": "The Tabular-Ink Rule", "body": "Dates, durations and progress percentages use tabular numerals so changing values do not jitter.", "section": "typography" },
+      { "name": "The Flat-By-Default Rule", "body": "Surfaces separate by tone and 1px hairline, never by shadow.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do let corner mounts and the date caption be the only world detail on a cell.",
+      "Do reserve gold for press, focus, selection and progress.",
+      "Do keep upload progress, failure and retry unambiguous in the drop strip.",
+      "Do keep the viewer dark and closable by Escape.",
+      "Do separate surfaces by tone and hairline, not shadow."
+    ],
+    "donts": [
+      "Don't let it read as a cloud-storage tool: no file-list rows, folder trees or storage meters.",
+      "Don't add social-feed devices: likes, reactions, engagement counts.",
+      "Don't let decoration compete with the photographs.",
+      "Don't reintroduce frame numbers; they shift as uploads arrive."
+    ]
+  }
+}
