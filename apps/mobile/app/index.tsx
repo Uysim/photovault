@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { Image } from "expo-image";
 import { Stack, useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
+import { groupByDay } from "@photovault/shared";
 import { authClient } from "../src/api";
 import { onDeleted } from "../src/gallery-events";
+import { buildRows } from "../src/rows";
 import { useGalleryWindow } from "../src/use-gallery-window";
 import { uploadAsset, type UploadState } from "../src/upload";
 import { color, font, radius } from "../src/theme";
@@ -26,7 +28,8 @@ export default function Gallery() {
   const cols = columnsFor(width);
   const size = (width - GAP * (cols - 1)) / cols;
 
-  const { items, loading, loadError, hasOlder, loadOlder, refresh, refreshAfterUpload, remove } = useGalleryWindow();
+  const { items, tz, loading, loadError, hasOlder, loadOlder, loadNewer, refresh, refreshAfterUpload, remove } = useGalleryWindow();
+  const { rows, headingIndices } = useMemo(() => buildRows(groupByDay(items, tz), cols), [items, tz, cols]);
   const [refreshing, setRefreshing] = useState(false);
   const [jobs, setJobs] = useState<Job[]>([]);
   const jobsRef = useRef<Job[]>([]);
@@ -138,31 +141,45 @@ export default function Gallery() {
 
       <FlatList
         key={cols}
-        data={items}
-        numColumns={cols}
-        keyExtractor={(i) => i.id}
-        columnWrapperStyle={cols > 1 ? { gap: GAP } : undefined}
-        ItemSeparatorComponent={() => <View style={{ height: GAP }} />}
+        data={rows}
+        keyExtractor={(r) => r.key}
+        stickyHeaderIndices={headingIndices}
+        // Prepending newer items must not shift the view: anchor on the first tile row.
+        maintainVisibleContentPosition={{ minIndexForVisible: 1 }}
+        // Safe at the newest end: loadNewer is a no-op while there is no newer cursor.
+        onStartReached={() => void loadNewer()}
+        onStartReachedThreshold={0.5}
         onEndReached={() => hasOlder && void loadOlder()}
         onEndReachedThreshold={0.5}
         refreshing={refreshing}
         onRefresh={() => { setRefreshing(true); void refresh().finally(() => setRefreshing(false)); }}
-        contentContainerStyle={items.length === 0 ? s.emptyWrap : { paddingBottom: 32 }}
-        renderItem={({ item }) => (
-          <Pressable
-            accessibilityRole="imagebutton"
-            accessibilityLabel={item.kind === "video" ? "Video" : "Photo"}
-            style={({ pressed }) => [{ width: size, height: size, backgroundColor: color.page, opacity: pressed ? 0.8 : 1 }]}
-            onPress={() => router.push({ pathname: "/viewer", params: { id: item.id, url: item.url, kind: item.kind } })}
-          >
-            <Image source={item.thumbUrl} style={{ width: size, height: size }} contentFit="cover" transition={150} />
-            {item.kind === "video" && (
-              <View style={s.badge} accessibilityElementsHidden importantForAccessibility="no">
-                <View style={s.play} />
-              </View>
-            )}
-          </Pressable>
-        )}
+        contentContainerStyle={rows.length === 0 ? s.emptyWrap : { paddingBottom: 32 }}
+        renderItem={({ item: row }) =>
+          row.type === "heading" ? (
+            <View style={s.heading}>
+              <Text style={s.headingText} accessibilityRole="header">{row.label}</Text>
+            </View>
+          ) : (
+            <View style={s.tileRow}>
+              {row.items.map((item) => (
+                <Pressable
+                  key={item.id}
+                  accessibilityRole="imagebutton"
+                  accessibilityLabel={item.kind === "video" ? "Video" : "Photo"}
+                  style={({ pressed }) => [{ width: size, height: size, backgroundColor: color.page, opacity: pressed ? 0.8 : 1 }]}
+                  onPress={() => router.push({ pathname: "/viewer", params: { id: item.id, url: item.url, kind: item.kind } })}
+                >
+                  <Image source={item.thumbUrl} style={{ width: size, height: size }} contentFit="cover" transition={150} />
+                  {item.kind === "video" && (
+                    <View style={s.badge} accessibilityElementsHidden importantForAccessibility="no">
+                      <View style={s.play} />
+                    </View>
+                  )}
+                </Pressable>
+              ))}
+            </View>
+          )
+        }
         ListEmptyComponent={
           loading ? (
             <ActivityIndicator color={color.gold} />
@@ -195,6 +212,9 @@ const s = StyleSheet.create({
   fill: { height: 4, backgroundColor: color.gold },
   failed: { fontFamily: font.regular, fontSize: 15, lineHeight: 21, color: color.error },
   actions: { flexDirection: "row", gap: 8, alignItems: "center" },
+  heading: { backgroundColor: color.cloth, paddingHorizontal: 12, paddingTop: 12, paddingBottom: 8 },
+  headingText: { fontFamily: font.semibold, fontSize: 15, color: color.inkDim },
+  tileRow: { flexDirection: "row", gap: GAP, marginBottom: GAP },
   emptyWrap: { flexGrow: 1, justifyContent: "center", paddingHorizontal: 32 },
   empty: { gap: 12, alignItems: "stretch" },
   emptyTitle: { fontFamily: font.bold, fontSize: 24, lineHeight: 30, color: color.ink },
