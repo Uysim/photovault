@@ -10,12 +10,19 @@ const PREFIX = "seed-";
 function localUrl(): string {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_URL is not set");
-  let host: string;
+  let parsed: URL;
   try {
-    host = new URL(url).hostname;
+    parsed = new URL(url);
   } catch {
     throw new Error("DATABASE_URL is not a valid URL");
   }
+  // pg lets ?host= / ?hostaddr= override the URL hostname, so they would bypass the check below.
+  for (const key of parsed.searchParams.keys()) {
+    if (["host", "hostaddr"].includes(key.toLowerCase())) {
+      throw new Error(`Refusing to seed: DATABASE_URL must not set "${key}" as a query parameter.`);
+    }
+  }
+  const host = parsed.hostname;
   if (!["localhost", "127.0.0.1", "[::1]", "::1"].includes(host)) {
     throw new Error(`Refusing to seed: DATABASE_URL host "${host}" is not local (localhost / 127.0.0.1 / [::1]).`);
   }
