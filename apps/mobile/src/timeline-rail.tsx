@@ -2,6 +2,7 @@ import { useMemo, useRef, useState, type ComponentRef } from "react";
 import { PanResponder, Pressable, StyleSheet, Text, View, type GestureResponderEvent, type LayoutChangeEvent } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { layoutRail, railYFor, segmentAtY, yearLabels, type RailSegment, type TimelineBucket } from "@photovault/shared";
+import { railTicks } from "./rail-position";
 import { color, font, radius } from "./theme";
 
 /** Width of the touch strip down the right edge; the gallery reserves the same width. */
@@ -9,6 +10,7 @@ export const RAIL_WIDTH = 32;
 
 const MIN_SEGMENT = 4;
 const LABEL_GAP = 20;
+const TICK_GAP = 3;
 const LATEST_HEIGHT = 36;
 const LABEL_HEIGHT = 18;
 const IDLE_OPACITY = 0.55;
@@ -45,6 +47,7 @@ export function TimelineRail({ buckets, active, onJump, onJumpNewest }: Props) {
 
   const segments = useMemo(() => layoutRail(buckets, height, MIN_SEGMENT), [buckets, height]);
   const labels = useMemo(() => yearLabels(segments, LABEL_GAP), [segments]);
+  const ticks = useMemo(() => railTicks(segments, TICK_GAP), [segments]);
 
   // The responder is created once; it reads the latest values through these refs.
   const live = useRef({ segments, buckets, onJump });
@@ -122,6 +125,25 @@ export function TimelineRail({ buckets, active, onJump, onJumpNewest }: Props) {
           importantForAccessibility="no"
           accessibilityElementsHidden
         />
+        {/* Month ticks: drawn under the labels and never a touch target (pointerEvents none). */}
+        <View
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
+          importantForAccessibility="no-hide-descendants"
+          accessibilityElementsHidden
+        >
+          {height > 0 &&
+            ticks.map((k) => (
+              <View
+                key={k.key}
+                style={[
+                  k.year ? s.tickYear : s.tick,
+                  { top: Math.min(k.top, height - 1), backgroundColor: k.year || lit ? color.inkDim : color.clothLine },
+                  { opacity: lit ? 0.8 : k.year ? IDLE_OPACITY : 1 },
+                ]}
+              />
+            ))}
+        </View>
         {height > 0 &&
           labels.map((l) => {
             const first = segments.find((x) => x.year === l.year) ?? null;
@@ -191,6 +213,8 @@ const s = StyleSheet.create({
   },
   track: { flex: 1 },
   line: { position: "absolute", top: 0, bottom: 0, right: 4, width: 1 },
+  tick: { position: "absolute", right: 2, width: 5, height: 1 },
+  tickYear: { position: "absolute", right: 1, width: 9, height: 1 },
   label: { position: "absolute", left: 0, right: 0, height: LABEL_HEIGHT, justifyContent: "center", alignItems: "flex-end", paddingRight: 7 },
   labelText: { fontFamily: font.semibold, fontSize: 10, fontVariant: ["tabular-nums"] },
   thumb: { position: "absolute", right: 0, width: 10, height: 3, borderRadius: 1.5 },

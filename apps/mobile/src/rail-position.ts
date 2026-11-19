@@ -1,4 +1,4 @@
-import { monthOf, type MediaItem } from "@photovault/shared";
+import { monthOf, type MediaItem, type RailSegment } from "@photovault/shared";
 import type { Row } from "./rows";
 
 export interface RailPosition {
@@ -40,4 +40,26 @@ export function topItemId(rows: Row[], viewableIndices: number[]): string | null
   if (rows[i]?.type === "heading") i++;
   const row = rows[i];
   return row?.type === "tiles" && row.items.length > 0 ? row.items[0].id : null;
+}
+
+export interface RailTick {
+  key: string;
+  top: number;
+  /** First (newest) month of its year: drawn longer and brighter. */
+  year: boolean;
+}
+
+/**
+ * One tick per month segment at its top. Year starts are always drawn; a month tick closer
+ * than `minGap` to the previously drawn tick is skipped so dense months don't merge into a bar.
+ */
+export function railTicks(segments: RailSegment[], minGap: number): RailTick[] {
+  const out: RailTick[] = [];
+  segments.forEach((s, i) => {
+    const year = i === 0 || segments[i - 1].year !== s.year;
+    const last = out[out.length - 1];
+    if (!year && last && s.top - last.top < minGap) return;
+    out.push({ key: `${s.year}-${s.month}`, top: s.top, year });
+  });
+  return out;
 }
