@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { MediaItem } from "@photovault/shared";
+import { groupByDay, type MediaItem } from "@photovault/shared";
 import { authClient } from "@/lib/auth-client";
 import { useGalleryWindow } from "@/lib/use-gallery-window";
 import { uploadFile, validateFile } from "@/lib/upload";
@@ -13,7 +13,7 @@ export default function Gallery() {
   const router = useRouter();
   const { data: session, isPending } = authClient.useSession();
   const gallery = useGalleryWindow(!!session);
-  const { items, hasOlder, loading, loadOlder, refreshAfterUpload: refresh } = gallery;
+  const { items, tz, hasOlder, loading, loadOlder, refreshAfterUpload: refresh } = gallery;
   const [open, setOpen] = useState<MediaItem | null>(null);
   const [uploads, setUploads] = useState<UploadRow[]>([]);
   const [dragging, setDragging] = useState(false);
@@ -144,20 +144,26 @@ export default function Gallery() {
             </div>
           )}
         </div>
-        <div className="grid">
-          {items.map((i) => (
-            <div key={i.id} className="cell">
-              <button className="tile" onClick={() => setOpen(i)} aria-label={`Open ${i.filename}`}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={i.thumbUrl} alt="" loading="lazy" draggable={false} />
-              </button>
-              <div className="caption">
-                <span>{fmtDate(i.takenAt)}</span>
-                {i.kind === "video" && <span>Video {Math.round((i.durationMs ?? 0) / 1000)}s</span>}
-              </div>
+        {groupByDay(items, tz).map((day) => (
+          <section key={day.key} className="day">
+            <h2 className="day-heading">{day.label}</h2>
+            <div className="grid">
+              {day.items.map((i) => (
+                <div key={i.id} className="cell" data-id={i.id}>
+                  <button className="tile" onClick={() => setOpen(i)} aria-label={`Open ${i.filename}`}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={i.thumbUrl} alt="" loading="lazy" draggable={false} />
+                  </button>
+                  {i.kind === "video" && (
+                    <div className="caption">
+                      <span>Video {Math.round((i.durationMs ?? 0) / 1000)}s</span>
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          </section>
+        ))}
         {hasOlder && (
           <div className="more">
             <button onClick={() => void loadOlder()}>Load more</button>
