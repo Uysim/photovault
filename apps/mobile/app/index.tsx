@@ -1,10 +1,11 @@
-import { useCallback, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { Image } from "expo-image";
-import { Stack, useFocusEffect, useRouter } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
-import type { MediaItem, MediaPage } from "@photovault/shared";
-import { api, authClient } from "../src/api";
+import { authClient } from "../src/api";
+import { onDeleted } from "../src/gallery-events";
+import { useGalleryWindow } from "../src/use-gallery-window";
 import { uploadAsset, type UploadState } from "../src/upload";
 import { color, font, radius } from "../src/theme";
 import { Btn } from "../src/ui";
@@ -25,32 +26,13 @@ export default function Gallery() {
   const cols = columnsFor(width);
   const size = (width - GAP * (cols - 1)) / cols;
 
-  const [items, setItems] = useState<MediaItem[]>([]);
-  const [cursor, setCursor] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { items, loading, loadError, hasOlder, loadOlder, refresh, refreshAfterUpload, remove } = useGalleryWindow();
   const [refreshing, setRefreshing] = useState(false);
-  const [loadError, setLoadError] = useState(false);
   const [jobs, setJobs] = useState<Job[]>([]);
   const jobsRef = useRef<Job[]>([]);
   const running = useRef(false);
 
-  const load = useCallback(async (cur: string | null) => {
-    try {
-      const res = await api(`/api/media${cur ? `?cursor=${encodeURIComponent(cur)}` : ""}`);
-      if (!res.ok) throw new Error(String(res.status));
-      const page: MediaPage = await res.json();
-      setItems((prev) => (cur ? [...prev, ...page.items] : page.items));
-      setCursor(page.nextCursor);
-      setLoadError(false);
-    } catch {
-      setLoadError(true);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
-
-  useFocusEffect(useCallback(() => { load(null); }, [load]));
+  useEffect(() => onDeleted(remove), [remove]);
 
   const setAllJobs = (next: Job[]) => {
     jobsRef.current = next;
@@ -77,7 +59,7 @@ export default function Gallery() {
       }
     } finally {
       running.current = false;
-      load(null);
+      refreshAfterUpload();
     }
   }
 
@@ -161,10 +143,10 @@ export default function Gallery() {
         keyExtractor={(i) => i.id}
         columnWrapperStyle={cols > 1 ? { gap: GAP } : undefined}
         ItemSeparatorComponent={() => <View style={{ height: GAP }} />}
-        onEndReached={() => cursor && load(cursor)}
+        onEndReached={() => hasOlder && void loadOlder()}
         onEndReachedThreshold={0.5}
         refreshing={refreshing}
-        onRefresh={() => { setRefreshing(true); load(null); }}
+        onRefresh={() => { setRefreshing(true); void refresh().finally(() => setRefreshing(false)); }}
         contentContainerStyle={items.length === 0 ? s.emptyWrap : { paddingBottom: 32 }}
         renderItem={({ item }) => (
           <Pressable
@@ -188,7 +170,7 @@ export default function Gallery() {
             <View style={s.empty}>
               <Text style={s.emptyTitle}>Couldn't load your library</Text>
               <Text style={s.emptyBody}>Check your connection and try again.</Text>
-              <Btn title="Try again" onPress={() => { setLoading(true); load(null); }} />
+              <Btn title="Try again" onPress={() => void refresh()} />
             </View>
           ) : (
             <View style={s.empty}>

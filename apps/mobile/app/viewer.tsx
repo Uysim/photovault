@@ -4,6 +4,7 @@ import { Image } from "expo-image";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { api } from "../src/api";
+import { emitDeleted } from "../src/gallery-events";
 import { color } from "../src/theme";
 import { Btn } from "../src/ui";
 
@@ -27,7 +28,10 @@ export default function Viewer() {
           setDeleting(true);
           try {
             const res = await api(`/api/media/${id}`, { method: "DELETE" });
-            if (res.ok) return router.back();
+            if (res.ok) {
+              emitDeleted(id);
+              return router.back();
+            }
           } catch {}
           setDeleting(false);
           Alert.alert("Couldn't delete", "Check your connection and try again.");
