@@ -15,6 +15,8 @@ packages/shared  Zod schemas + API types
 4. `POST /api/uploads/complete` HEADs both objects and marks the row `ready`.
 5. Daily cron (`/api/cron/cleanup`) deletes uploads still `pending` after 24h.
 
+Browsing: `GET /api/media` pages newest first by cursor (`dir=newer` pages toward the latest after a jump); `GET /api/media/timeline` returns per-month counts that drive the year/month rail in both apps.
+
 ## Setup
 1. `pnpm install`
 2. S3: create a **private** bucket. CORS (for web playback): allow GET/PUT/HEAD from your web origin.
