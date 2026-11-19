@@ -71,6 +71,8 @@ export function useGalleryWindow(): GalleryWindowApi {
   const timelineSeq = useRef(0);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const focused = useRef(false);
+  // Mirrors `loadError` for async callbacks: true while the latest reset has failed.
+  const loadErrorRef = useRef(false);
 
   const setWin = useCallback((next: GalleryWindow) => {
     winRef.current = next;
@@ -94,6 +96,7 @@ export function useGalleryWindow(): GalleryWindowApi {
       const page = await getJson<MediaPage>(pageUrl(cursor ?? undefined));
       if (g !== gen.current) return;
       if (page) setWin(startWindow(page, cursor !== null));
+      loadErrorRef.current = page === null;
       setLoadError(page === null);
       resetting.current = false;
       setLoading(false);
@@ -104,12 +107,18 @@ export function useGalleryWindow(): GalleryWindowApi {
   // Refetch the timeline and merge page 1 when the window reaches the newest end
   // (mergeNewest is a no-op otherwise). Never replaces the window, so scroll position survives.
   const syncNewest = useCallback(async () => {
+    // The last reset failed: the window has no valid cursors, so merging page 1 would leave
+    // `olderCursor` null and paging dead. Retry a full reset instead (no-op if one is pending).
+    if (loadErrorRef.current) {
+      if (!resetting.current) await reset(null, tzRef.current, true);
+      return;
+    }
     const g = gen.current;
     void fetchTimeline(tzRef.current);
     const data = await getJson<MediaPage>(pageUrl());
     if (!data || g !== gen.current || resetting.current) return;
     setWin(mergeNewest(winRef.current, data));
-  }, [fetchTimeline, setWin]);
+  }, [fetchTimeline, reset, setWin]);
 
   // First focus does the initial load; later focuses (e.g. back from the viewer) never reset.
   useFocusEffect(
