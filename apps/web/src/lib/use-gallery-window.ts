@@ -59,6 +59,8 @@ export function useGalleryWindow(enabled: boolean): GalleryWindowApi {
   // Incremented on every jump/reset; a response from an earlier generation is discarded.
   const gen = useRef(0);
   const inflight = useRef({ older: false, newer: false });
+  // True from the start of a reset/jump until its response lands: paging is blocked meanwhile.
+  const resetting = useRef(false);
   const timelineSeq = useRef(0);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -78,11 +80,13 @@ export function useGalleryWindow(enabled: boolean): GalleryWindowApi {
     async (cursor: string | null, zone: string, withTimeline: boolean) => {
       const g = ++gen.current;
       inflight.current = { older: false, newer: false };
+      resetting.current = true;
       setLoading(true);
       if (withTimeline) void fetchTimeline(zone);
       const page = await getJson<MediaPage>(pageUrl(cursor ?? undefined));
       if (g !== gen.current) return;
       if (page) setWin(startWindow(page, cursor !== null));
+      resetting.current = false;
       setLoading(false);
     },
     [fetchTimeline, setWin],
@@ -118,12 +122,14 @@ export function useGalleryWindow(enabled: boolean): GalleryWindowApi {
     async (dir: "older" | "newer") => {
       const w = winRef.current;
       const cursor = dir === "older" ? w.olderCursor : w.newerCursor;
-      if (!cursor || inflight.current[dir]) return;
+      if (!cursor || resetting.current || inflight.current[dir]) return;
       const g = gen.current;
       inflight.current[dir] = true;
       try {
         const data = await getJson<MediaPage>(pageUrl(cursor, dir));
         if (!data || g !== gen.current) return;
+        const now = winRef.current;
+        if ((dir === "older" ? now.olderCursor : now.newerCursor) !== cursor) return;
         setWin(dir === "older" ? appendOlder(winRef.current, data) : prependNewer(winRef.current, data));
       } finally {
         if (g === gen.current) inflight.current[dir] = false;
@@ -162,8 +168,8 @@ export function useGalleryWindow(enabled: boolean): GalleryWindowApi {
     items: win.items,
     timeline,
     tz,
-    hasOlder: win.olderCursor !== null,
-    hasNewer: win.newerCursor !== null,
+    hasOlder: !loading && win.olderCursor !== null,
+    hasNewer: !loading && win.newerCursor !== null,
     loading,
     loadOlder,
     loadNewer,
