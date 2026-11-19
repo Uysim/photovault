@@ -51,3 +51,4 @@ export const signUpInput = z.object({
   inviteCode: z.string().min(1),
 });
 export * from "./timeline";
+export * from "./gallery-window";
