@@ -1,8 +1,9 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { MediaItem, MediaPage } from "@photovault/shared";
+import type { MediaItem } from "@photovault/shared";
 import { authClient } from "@/lib/auth-client";
+import { useGalleryWindow } from "@/lib/use-gallery-window";
 import { uploadFile, validateFile } from "@/lib/upload";
 
 type UploadRow = { key: string; name: string; progress: number; status: "uploading" | "done" | "error"; error?: string };
@@ -11,57 +12,16 @@ const MAX_PARALLEL = 3;
 export default function Gallery() {
   const router = useRouter();
   const { data: session, isPending } = authClient.useSession();
-  const [items, setItems] = useState<MediaItem[]>([]);
-  const [cursor, setCursor] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
+  const gallery = useGalleryWindow(!!session);
+  const { items, hasOlder, loading, loadOlder, refreshAfterUpload: refresh } = gallery;
   const [open, setOpen] = useState<MediaItem | null>(null);
-  const loading = useRef(false);
   const [uploads, setUploads] = useState<UploadRow[]>([]);
   const [dragging, setDragging] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
-  const load = useCallback(async (c: string | null) => {
-    if (loading.current) return;
-    loading.current = true;
-    try {
-      const res = await fetch(`/api/media${c ? `?cursor=${encodeURIComponent(c)}` : ""}`);
-      if (res.ok) {
-        const page: MediaPage = await res.json();
-        setItems((prev) => (c ? [...prev, ...page.items] : page.items));
-        setCursor(page.nextCursor);
-        setDone(!page.nextCursor);
-      }
-    } finally {
-      loading.current = false;
-    }
-  }, []);
-
   useEffect(() => {
     if (!isPending && !session) router.replace("/login");
-    else if (session) load(null);
-  }, [isPending, session, router, load]);
-
-  // After an upload, fetch page 1 and merge in anything new. Keeps already-loaded pages,
-  // never affects an upload row's status, and is debounced so a batch causes few refetches.
-  // (A file with an old date sorts past page 1 and shows up under "Load more".)
-  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const refresh = useCallback(() => {
-    if (refreshTimer.current) clearTimeout(refreshTimer.current);
-    refreshTimer.current = setTimeout(async () => {
-      try {
-        const res = await fetch("/api/media");
-        if (!res.ok) return;
-        const page: MediaPage = await res.json();
-        setItems((prev) => {
-          const known = new Set(prev.map((i) => i.id));
-          const added = page.items.filter((i) => !known.has(i.id));
-          return added.length ? [...added, ...prev].sort((a, b) => b.takenAt.localeCompare(a.takenAt)) : prev;
-        });
-      } catch {
-        /* the upload itself succeeded; a later refresh or reload will show it */
-      }
-    }, 300);
-  }, []);
+  }, [isPending, session, router]);
 
   const addFiles = useCallback(
     (files: File[]) => {
@@ -123,7 +83,7 @@ export default function Gallery() {
   async function remove(item: MediaItem) {
     if (!confirm("Delete this item permanently?")) return;
     await fetch(`/api/media/${item.id}`, { method: "DELETE" });
-    setItems((prev) => prev.filter((i) => i.id !== item.id));
+    gallery.remove(item.id);
     setOpen(null);
   }
 
@@ -198,12 +158,12 @@ export default function Gallery() {
             </div>
           ))}
         </div>
-        {!done && (
+        {hasOlder && (
           <div className="more">
-            <button onClick={() => load(cursor)}>Load more</button>
+            <button onClick={() => void loadOlder()}>Load more</button>
           </div>
         )}
-        {items.length === 0 && done && <p className="empty">This page is empty. Add the first photos or videos with Upload or by dropping them here.</p>}
+        {items.length === 0 && !hasOlder && !loading && <p className="empty">This page is empty. Add the first photos or videos with Upload or by dropping them here.</p>}
       </div>
       {open && (
         <div className="modal" role="dialog" aria-modal="true" aria-label={open.filename} onClick={() => setOpen(null)}>
