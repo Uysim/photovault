@@ -28,8 +28,8 @@ export default function Gallery() {
   const cols = columnsFor(width);
   const size = (width - GAP * (cols - 1)) / cols;
 
-  const { items, tz, loading, loadError, hasOlder, loadOlder, loadNewer, refresh, refreshAfterUpload, remove } = useGalleryWindow();
-  const { rows, headingIndices } = useMemo(() => buildRows(groupByDay(items, tz), cols), [items, tz, cols]);
+  const { items, tz, loading, loadError, hasOlder, hasNewer, loadOlder, loadNewer, refresh, refreshAfterUpload, remove } = useGalleryWindow();
+  const { rows, headingIndices } = useMemo(() => buildRows(groupByDay(items, tz), cols, hasNewer), [items, tz, cols, hasNewer]);
   const [refreshing, setRefreshing] = useState(false);
   const [jobs, setJobs] = useState<Job[]>([]);
   const jobsRef = useRef<Job[]>([]);
