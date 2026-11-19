@@ -236,7 +236,7 @@ export default function Gallery() {
   if (!session) return null;
   return (
     <>
-      <div className="bar">
+      <div className={`bar${timeline.length > 0 ? " with-rail" : ""}`}>
         <h1>PhotoVault</h1>
         <div className="bar-actions">
           {(session.user as { role?: string }).role === "admin" && <a className="btn" href="/admin">Invites</a>}
@@ -255,6 +255,8 @@ export default function Gallery() {
           />
         </div>
       </div>
+      {/* Before the page in the DOM so Tab reaches the rail ahead of the tiles; it is position: fixed. */}
+      {!open && <TimelineRail buckets={timeline} active={active} onJump={onJump} onJumpNewest={onJumpNewest} />}
       {dragging && <div className="drop-overlay">Drop to add to the album</div>}
       <div className={`page${timeline.length > 0 ? " with-rail" : ""}`}>
         <div className={`dropstrip${dragging || uploading ? " active" : ""}`}>
@@ -314,7 +316,6 @@ export default function Gallery() {
         </KeepScrollOnPrepend>
         {items.length === 0 && !hasOlder && !loading && <p className="empty">This page is empty. Add the first photos or videos with Upload or by dropping them here.</p>}
       </div>
-      {!open && <TimelineRail buckets={timeline} active={active} onJump={onJump} onJumpNewest={onJumpNewest} />}
       {open && (
         <div className="modal" role="dialog" aria-modal="true" aria-label={open.filename} onClick={() => setOpen(null)}>
           <div className="viewer" onClick={(e) => e.stopPropagation()}>

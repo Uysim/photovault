@@ -114,8 +114,8 @@ progress::-moz-progress-bar { background: var(--gold); }
 /* scroll position is kept by hand when newer items are prepended; native anchoring would double it */
 .gallery { overflow-anchor: none; }
 
-/* page edge stays clear of the rail: only the part of --rail-gap the body padding and shell margin don't already cover */
-.page.with-rail { margin-right: max(0px, var(--rail-gap) - var(--pad-x) - max(0px, (100vw - 2 * var(--pad-x) - 1200px) / 2)); }
+/* top bar and page edges stay clear of the rail: only the part of --rail-gap the body padding and shell margin don't already cover */
+.with-rail { margin-right: max(0px, var(--rail-gap) - var(--pad-x) - max(0px, (100vw - 2 * var(--pad-x) - 1200px) / 2)); }
 
 /* timeline rail: quiet ink at rest, brighter when touched, gold while dragging */
 .rail {

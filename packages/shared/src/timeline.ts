@@ -146,19 +146,27 @@ export function railYFor(
   return s ? s.top + s.height * fraction : null;
 }
 
+/**
+ * One label per year at the top of the year's first segment, newest first. When a year's label
+ * would sit closer than `minGap` to the previously kept label, the year that spans more track
+ * height keeps the slot (ties keep the newer year), so a tiny current-year segment can't hide
+ * the year below it.
+ */
 export function yearLabels(
   segments: RailSegment[],
   minGap: number,
 ): { year: number; top: number }[] {
-  const out: { year: number; top: number }[] = [];
-  let prevYear: number | null = null;
-  let lastTop = -Infinity;
+  const years: { year: number; top: number; span: number }[] = [];
   for (const s of segments) {
-    if (s.year === prevYear) continue;
-    prevYear = s.year;
-    if (s.top - lastTop < minGap) continue;
-    out.push({ year: s.year, top: s.top });
-    lastTop = s.top;
+    const last = years[years.length - 1];
+    if (last && last.year === s.year) last.span += s.height;
+    else years.push({ year: s.year, top: s.top, span: s.height });
   }
-  return out;
+  const kept: { year: number; top: number; span: number }[] = [];
+  for (const y of years) {
+    const last = kept[kept.length - 1];
+    if (!last || y.top - last.top >= minGap) kept.push(y);
+    else if (y.span > last.span) kept[kept.length - 1] = y;
+  }
+  return kept.map(({ year, top }) => ({ year, top }));
 }
