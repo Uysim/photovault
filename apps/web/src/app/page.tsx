@@ -55,7 +55,7 @@ export default function Gallery() {
   const router = useRouter();
   const { data: session, isPending } = authClient.useSession();
   const gallery = useGalleryWindow(!!session);
-  const { items, timeline, tz, hasOlder, hasNewer, loading, loadOlder, loadNewer, jumpTo, jumpToNewest, refreshAfterUpload: refresh } = gallery;
+  const { items, timeline, tz, hasOlder, hasNewer, loading, loadError, refresh: retryLoad, loadOlder, loadNewer, jumpTo, jumpToNewest, refreshAfterUpload: refresh } = gallery;
   const [open, setOpen] = useState<MediaItem | null>(null);
   const [active, setActive] = useState<RailPosition | null>(null);
   const topSentinel = useRef<HTMLDivElement>(null);
@@ -314,7 +314,13 @@ export default function Gallery() {
           </div>
         )}
         </KeepScrollOnPrepend>
-        {items.length === 0 && !hasOlder && !loading && <p className="empty">This page is empty. Add the first photos or videos with Upload or by dropping them here.</p>}
+        {items.length === 0 && !hasOlder && !loading && loadError && (
+          <div className="empty" role="alert">
+            <p>Couldn&apos;t load your library.</p>
+            <button onClick={() => void retryLoad()}>Try again</button>
+          </div>
+        )}
+        {items.length === 0 && !hasOlder && !loading && !loadError && <p className="empty">This page is empty. Add the first photos or videos with Upload or by dropping them here.</p>}
       </div>
       {open && (
         <div className="modal" role="dialog" aria-modal="true" aria-label={open.filename} onClick={() => setOpen(null)}>

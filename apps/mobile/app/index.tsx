@@ -196,7 +196,8 @@ export default function Gallery() {
         keyExtractor={(r) => r.key}
         stickyHeaderIndices={headingIndices}
         // Prepending newer items must not shift the view: anchor on the first tile row.
-        maintainVisibleContentPosition={{ minIndexForVisible: 1 }}
+        // At the newest end (no newer pages) new uploads merge above the anchor: autoscroll keeps them visible.
+        maintainVisibleContentPosition={{ minIndexForVisible: 1, autoscrollToTopThreshold: hasNewer ? undefined : 40 }}
         // Safe at the newest end: loadNewer is a no-op while there is no newer cursor.
         onStartReached={() => void loadNewer()}
         onStartReachedThreshold={0.5}

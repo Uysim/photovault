@@ -20,10 +20,14 @@ export interface GalleryWindowApi {
   hasOlder: boolean;
   hasNewer: boolean;
   loading: boolean;
+  /** True when the latest reset failed (cleared by the next success). */
+  loadError: boolean;
   loadOlder(): Promise<void>;
   loadNewer(): Promise<void>;
   jumpTo(bucket: TimelineBucket): Promise<void>;
   jumpToNewest(): Promise<void>;
+  /** Retry: reset to the newest page and refetch the timeline. */
+  refresh(): Promise<void>;
   refreshAfterUpload(): void;
   remove(id: string): void;
 }
@@ -52,6 +56,7 @@ export function useGalleryWindow(enabled: boolean): GalleryWindowApi {
   const [timeline, setTimeline] = useState<TimelineBucket[]>([]);
   const [tz, setTz] = useState<string>(() => currentTimeZone());
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   // Refs mirror state so async callbacks always see the latest window without stale closures.
   const winRef = useRef(win);
@@ -63,6 +68,8 @@ export function useGalleryWindow(enabled: boolean): GalleryWindowApi {
   const resetting = useRef(false);
   const timelineSeq = useRef(0);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Mirrors `loadError` for async callbacks: true while the latest reset has failed.
+  const loadErrorRef = useRef(false);
 
   const setWin = useCallback((next: GalleryWindow) => {
     winRef.current = next;
@@ -86,6 +93,8 @@ export function useGalleryWindow(enabled: boolean): GalleryWindowApi {
       const page = await getJson<MediaPage>(pageUrl(cursor ?? undefined));
       if (g !== gen.current) return;
       if (page) setWin(startWindow(page, cursor !== null));
+      loadErrorRef.current = page === null;
+      setLoadError(page === null);
       resetting.current = false;
       setLoading(false);
     },
@@ -143,18 +152,29 @@ export function useGalleryWindow(enabled: boolean): GalleryWindowApi {
   const jumpTo = useCallback((bucket: TimelineBucket) => reset(jumpCursor(bucket), tzRef.current, false), [reset]);
   const jumpToNewest = useCallback(() => reset(null, tzRef.current, false), [reset]);
 
+  const refresh = useCallback(() => reset(null, tzRef.current, true), [reset]);
+
   // After an upload: debounced so a batch causes few refetches. Always refreshes the timeline;
   // merges page 1 only when the window reaches the newest end (mergeNewest is a no-op otherwise).
   const refreshAfterUpload = useCallback(() => {
     if (refreshTimer.current) clearTimeout(refreshTimer.current);
     refreshTimer.current = setTimeout(async () => {
+      // The last reset failed and the window is empty: it has no valid cursors, so merging page 1 would leave
+      // `olderCursor` null and paging dead. Retry a full reset instead (no-op if one is pending).
+      if (loadErrorRef.current && winRef.current.items.length === 0) {
+        if (!resetting.current) await reset(null, tzRef.current, true);
+        return;
+      }
       const g = gen.current;
       void fetchTimeline(tzRef.current);
       const data = await getJson<MediaPage>(pageUrl());
-      if (!data || g !== gen.current) return;
+      if (!data || g !== gen.current || resetting.current) return;
       setWin(mergeNewest(winRef.current, data));
+      // The window is healthy and this fetch succeeded: drop any stale error from a failed jump.
+      loadErrorRef.current = false;
+      setLoadError(false);
     }, REFRESH_DEBOUNCE_MS);
-  }, [fetchTimeline, setWin]);
+  }, [fetchTimeline, reset, setWin]);
 
   const remove = useCallback(
     (id: string) => {
@@ -171,10 +191,12 @@ export function useGalleryWindow(enabled: boolean): GalleryWindowApi {
     hasOlder: !loading && win.olderCursor !== null,
     hasNewer: !loading && win.newerCursor !== null,
     loading,
+    loadError,
     loadOlder,
     loadNewer,
     jumpTo,
     jumpToNewest,
+    refresh,
     refreshAfterUpload,
     remove,
   };
