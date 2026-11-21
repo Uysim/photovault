@@ -34,6 +34,28 @@ export function currentTimeZone(): string {
   }
 }
 
+// Intl.DateTimeFormat construction is expensive (hundreds of microseconds): cache per locale/zone/options.
+// Only successfully constructed formatters are stored; the key is the requested zone.
+const formatterCache = new Map<string, Intl.DateTimeFormat>();
+
+function formatterFor(
+  locale: string | undefined,
+  options: Intl.DateTimeFormatOptions,
+  tz: string,
+): Intl.DateTimeFormat {
+  const key = `${locale ?? ""}|${tz}|${JSON.stringify(options)}`;
+  let f = formatterCache.get(key);
+  if (!f) {
+    try {
+      f = new Intl.DateTimeFormat(locale, { ...options, timeZone: tz });
+    } catch {
+      f = new Intl.DateTimeFormat(locale, { ...options, timeZone: "UTC" });
+    }
+    formatterCache.set(key, f);
+  }
+  return f;
+}
+
 function formatParts(
   iso: string,
   tz: string,
@@ -41,12 +63,7 @@ function formatParts(
   locale?: string,
 ): Record<string, string> {
   const date = new Date(iso);
-  let parts: Intl.DateTimeFormatPart[];
-  try {
-    parts = new Intl.DateTimeFormat(locale, { ...options, timeZone: tz }).formatToParts(date);
-  } catch {
-    parts = new Intl.DateTimeFormat(locale, { ...options, timeZone: "UTC" }).formatToParts(date);
-  }
+  const parts = formatterFor(locale, options, tz).formatToParts(date);
   const out: Record<string, string> = {};
   for (const p of parts) out[p.type] = p.value;
   return out;
@@ -73,13 +90,9 @@ export function dayLabel(iso: string, tz: string, locale?: string): string {
     year: "numeric",
   };
   try {
-    return new Intl.DateTimeFormat(locale, { ...options, timeZone: tz }).format(date);
+    return formatterFor(locale, options, tz).format(date);
   } catch {
-    try {
-      return new Intl.DateTimeFormat(locale, { ...options, timeZone: "UTC" }).format(date);
-    } catch {
-      return dayKey(iso, "UTC");
-    }
+    return dayKey(iso, "UTC");
   }
 }
 

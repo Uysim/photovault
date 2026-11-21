@@ -52,7 +52,9 @@ export function prependNewer(w: GalleryWindow, page: MediaPage): GalleryWindow {
 
 export function mergeNewest(w: GalleryWindow, page: MediaPage): GalleryWindow {
   if (w.newerCursor !== null) return w;
-  const merged = [...w.items, ...unseen(w, page.items)];
+  const added = unseen(w, page.items);
+  if (added.length === 0) return w;
+  const merged = [...w.items, ...added];
   merged.sort((a, b) =>
     a.takenAt !== b.takenAt
       ? a.takenAt < b.takenAt ? 1 : -1
