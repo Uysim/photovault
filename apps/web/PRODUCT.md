@@ -26,7 +26,8 @@ Next.js on Vercel with Postgres (Neon) and a private S3 bucket. Better Auth hand
 
 - Sign in (`/login`), gallery (`/`), admin invites (`/admin`), browser upload with drag-and-drop.
 - Photos and videos both supported; thumbnails are 480px JPEGs.
-- Sharing model beyond the shared gallery (albums, per-item permissions, quotas, auto-backup) is not built; undecided.
+- Personal albums (`/albums`): create, rename, delete, add and remove media via select mode and the album picker; deleting an album or removing items never deletes the media.
+- Sharing albums with other members, per-item permissions, quotas, and auto-backup are not built; undecided.
 - Shares its API and Zod schemas (`packages/shared`) with the mobile app.
 
 ## Evidence on Hand
