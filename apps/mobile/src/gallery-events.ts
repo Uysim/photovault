@@ -31,3 +31,18 @@ export function onRemovedFromAlbum(cb: RemovedListener): () => void {
     removedFromAlbumListeners.delete(cb);
   };
 }
+
+const staleListeners = new Set<() => void>();
+
+/** Tell the gallery its window may hold items that are gone (e.g. an add from the viewer got a 400). */
+export function emitGalleryStale(): void {
+  for (const cb of [...staleListeners]) cb();
+}
+
+/** Subscribe to stale notices; returns the unsubscribe function. */
+export function onGalleryStale(cb: () => void): () => void {
+  staleListeners.add(cb);
+  return () => {
+    staleListeners.delete(cb);
+  };
+}
