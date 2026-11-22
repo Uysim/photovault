@@ -14,3 +14,20 @@ export function onDeleted(cb: Listener): () => void {
     deletedListeners.delete(cb);
   };
 }
+
+type RemovedListener = (albumId: string, mediaId: string) => void;
+
+const removedFromAlbumListeners = new Set<RemovedListener>();
+
+/** Tell open album views that an item was taken out of an album (e.g. from the viewer). */
+export function emitRemovedFromAlbum(albumId: string, mediaId: string): void {
+  for (const cb of [...removedFromAlbumListeners]) cb(albumId, mediaId);
+}
+
+/** Subscribe to album removals; returns the unsubscribe function. */
+export function onRemovedFromAlbum(cb: RemovedListener): () => void {
+  removedFromAlbumListeners.add(cb);
+  return () => {
+    removedFromAlbumListeners.delete(cb);
+  };
+}
