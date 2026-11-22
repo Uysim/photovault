@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { albumMediaInput, albumNameInput, chunk } from "./album";
+import { albumMediaInput, createAlbumInput, albumNameInput, chunk } from "./album";
 
 describe("albumNameInput", () => {
   it("rejects empty, whitespace-only and over-long names", () => {
@@ -19,6 +19,17 @@ describe("albumMediaInput", () => {
     expect(albumMediaInput.safeParse({ mediaIds: [] }).success).toBe(false);
     expect(albumMediaInput.safeParse({ mediaIds: ids(201) }).success).toBe(false);
     expect(albumMediaInput.safeParse({ mediaIds: ids(200) }).success).toBe(true);
+  });
+});
+
+describe("media id length", () => {
+  it("accepts a 36-char UUID and rejects a 65-char id", () => {
+    const uuid = "123e4567-e89b-12d3-a456-426614174000";
+    expect(albumMediaInput.safeParse({ mediaIds: [uuid] }).success).toBe(true);
+    expect(createAlbumInput.safeParse({ name: "a", mediaIds: [uuid] }).success).toBe(true);
+    const long = "a".repeat(65);
+    expect(albumMediaInput.safeParse({ mediaIds: [long] }).success).toBe(false);
+    expect(createAlbumInput.safeParse({ name: "a", mediaIds: [long] }).success).toBe(false);
   });
 });
 

@@ -7,7 +7,7 @@ export const albumNameInput = z.string().trim().min(1).max(ALBUM_NAME_MAX);
 
 export const createAlbumInput = z.object({
   name: albumNameInput,
-  mediaIds: z.array(z.string().min(1)).max(ALBUM_MEDIA_BATCH).optional(),
+  mediaIds: z.array(z.string().min(1).max(64)).max(ALBUM_MEDIA_BATCH).optional(),
 });
 export type CreateAlbumInput = z.infer<typeof createAlbumInput>;
 
@@ -15,7 +15,7 @@ export const renameAlbumInput = z.object({ name: albumNameInput });
 export type RenameAlbumInput = z.infer<typeof renameAlbumInput>;
 
 export const albumMediaInput = z.object({
-  mediaIds: z.array(z.string().min(1)).min(1).max(ALBUM_MEDIA_BATCH),
+  mediaIds: z.array(z.string().min(1).max(64)).min(1).max(ALBUM_MEDIA_BATCH),
 });
 export type AlbumMediaInput = z.infer<typeof albumMediaInput>;
 

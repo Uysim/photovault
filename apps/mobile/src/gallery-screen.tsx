@@ -28,7 +28,6 @@ type AlbumState = { status: "loading" } | { status: "ready"; album: Album } | { 
 type Picking = { ids: string[]; fromSelection: boolean };
 
 const GAP = 3;
-const MAX_ROWS = 3;
 
 function columnsFor(width: number) {
   return width >= 900 ? 6 : width >= 600 ? 5 : 3;
