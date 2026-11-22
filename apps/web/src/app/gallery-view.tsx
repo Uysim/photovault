@@ -281,6 +281,10 @@ export function GalleryView({ albumId }: { albumId?: string } = {}) {
   const { notice, show: showNotice } = useNotice();
 
   const exitSelect = selection.exit;
+  const startSelect = () => {
+    setSelectError(null);
+    selection.start();
+  };
   // Escape leaves select mode inside useSelection; clear a leftover error however it was left.
   useEffect(() => {
     if (!selection.active) setSelectError(null);
@@ -297,9 +301,35 @@ export function GalleryView({ albumId }: { albumId?: string } = {}) {
   }
 
   async function unlink(ids: string[]) {
-    await removeFromAlbum(albumId!, ids);
+    const done: string[] = [];
+    try {
+      await removeFromAlbum(albumId!, ids, (batch) => done.push(...batch));
+    } catch (e) {
+      // Earlier batches may have gone through: unselect those and reload the album from the server.
+      selection.drop(done);
+      void retryLoad();
+      throw e;
+    }
     gallery.removeMany(ids);
   }
+
+  // A picker add failed because some ids are gone (deleted elsewhere): reload the gallery, then
+  // keep only selected ids that the refreshed window still shows, so the member can retry as is.
+  const pruneAfterLoad = useRef(false);
+  const onStale = () => {
+    pruneAfterLoad.current = true;
+    void retryLoad();
+  };
+  useEffect(() => {
+    if (!pruneAfterLoad.current || loading) return;
+    pruneAfterLoad.current = false;
+    if (loadError) return;
+    const shown = new Set(items.map((i) => i.id));
+    const gone = [...selection.ids].filter((id) => !shown.has(id));
+    if (gone.length === 0) return;
+    selection.drop(gone);
+    setPicking((p) => (p?.fromSelection ? { ...p, ids: p.ids.filter((id) => shown.has(id)) } : p));
+  }, [loading, loadError, items, selection]);
 
   async function removeSelected() {
     setSelectError(null);
@@ -372,7 +402,7 @@ export function GalleryView({ albumId }: { albumId?: string } = {}) {
         )}
         {inAlbum && (
           <div className="bar-actions">
-            {items.length > 0 && !selection.active && <button onClick={selection.start}>Select</button>}
+            {items.length > 0 && !selection.active && <button onClick={startSelect}>Select</button>}
             {albumState.status === "ready" && (
               <AlbumActions album={albumState.album} onRenamed={(album) => setAlbumState({ status: "ready", album })} />
             )}
@@ -380,7 +410,7 @@ export function GalleryView({ albumId }: { albumId?: string } = {}) {
         )}
         {!inAlbum && (
           <div className="bar-actions">
-            {items.length > 0 && !selection.active && <button onClick={selection.start}>Select</button>}
+            {items.length > 0 && !selection.active && <button onClick={startSelect}>Select</button>}
             <Link className="btn" href="/albums">Albums</Link>
             {(session.user as { role?: string }).role === "admin" && <a className="btn" href="/admin">Invites</a>}
             <button className="primary" onClick={() => fileInput.current?.click()}>Upload</button>
@@ -515,6 +545,7 @@ export function GalleryView({ albumId }: { albumId?: string } = {}) {
         <AlbumPicker
           mediaIds={picking.ids}
           excludeAlbumId={albumId}
+          onStale={onStale}
           onDone={(album, created) => picked(album, created, picking.ids.length)}
           onClose={() => setPicking(null)}
         />

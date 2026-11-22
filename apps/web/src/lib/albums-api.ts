@@ -83,8 +83,10 @@ export async function addToAlbum(id: string, mediaIds: string[]): Promise<void> 
   }
 }
 
-export async function removeFromAlbum(id: string, mediaIds: string[]): Promise<void> {
+/** `onRemoved` gets each batch that succeeded, so a caller can tell what a later failure left done. */
+export async function removeFromAlbum(id: string, mediaIds: string[], onRemoved?: (ids: string[]) => void): Promise<void> {
   for (const ids of chunk(mediaIds, ALBUM_MEDIA_BATCH)) {
     await request(`/api/albums/${enc(id)}/media`, jsonInit("DELETE", { mediaIds: ids }), "remove from album");
+    onRemoved?.(ids);
   }
 }

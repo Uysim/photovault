@@ -8,6 +8,8 @@ export interface Selection {
   ids: ReadonlySet<string>;
   start(): void;
   toggle(id: string): void;
+  /** Unselect these ids (they were removed or are gone); select mode stays on. */
+  drop(ids: Iterable<string>): void;
   /** Leave select mode and clear the selection. */
   exit(): void;
 }
@@ -33,6 +35,14 @@ export function useSelection(escapeBlocked = false): Selection {
     });
   }, []);
 
+  const drop = useCallback((gone: Iterable<string>) => {
+    setIds((prev) => {
+      const next = new Set(prev);
+      for (const id of gone) next.delete(id);
+      return next.size === prev.size ? prev : next;
+    });
+  }, []);
+
   useEffect(() => {
     if (!active || escapeBlocked) return;
     const onKey = (e: KeyboardEvent) => {
@@ -42,5 +52,5 @@ export function useSelection(escapeBlocked = false): Selection {
     return () => window.removeEventListener("keydown", onKey);
   }, [active, escapeBlocked, exit]);
 
-  return { active, ids, start, toggle, exit };
+  return { active, ids, start, toggle, drop, exit };
 }

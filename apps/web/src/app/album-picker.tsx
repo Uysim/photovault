@@ -19,19 +19,22 @@ function failure(e: unknown, count: number, fallback: string): string {
 /**
  * Modal that adds `mediaIds` to one of the member's albums, or to a new one. Failures show inline
  * and keep the picker open; success calls `onDone` with the album. `excludeAlbumId` hides the
- * album the member is already in.
+ * album the member is already in. On a 400 (some ids are gone) it also calls `onStale`, so the
+ * caller can refresh the gallery and prune the ids it passes in; the error stays shown.
  */
 export function AlbumPicker({
   mediaIds,
   onDone,
   onClose,
   excludeAlbumId,
+  onStale,
 }: {
   mediaIds: string[];
   /** `created` is true when the album was made here with "New album". */
   onDone: (album: Album, created: boolean) => void;
   onClose: () => void;
   excludeAlbumId?: string;
+  onStale?: () => void;
 }) {
   const titleId = useId();
   const [albums, setAlbums] = useState<Album[] | null>(null);
@@ -105,6 +108,7 @@ export function AlbumPicker({
       // A create can fail after the album exists (later batches): leave the form and show it in the list.
       if (e instanceof PartialCreateError) setNaming(false);
       void load();
+      if (e instanceof ApiError && e.status === 400) onStale?.();
     }
   }
 
@@ -126,6 +130,8 @@ export function AlbumPicker({
     void run(() => createAlbum(trimmed, mediaIds), true, "Could not create album");
   }
 
+  // Nothing left to add (e.g. every selected item turned out to be gone): keep the choices off.
+  const off = busy || mediaIds.length === 0;
   const shown = albums?.filter((a) => a.id !== excludeAlbumId) ?? null;
 
   return (
@@ -164,7 +170,7 @@ export function AlbumPicker({
               required
             />
             <span className="bar-actions">
-              <button type="submit" className="primary" disabled={busy || !name.trim()}>
+              <button type="submit" className="primary" disabled={off || !name.trim()}>
                 {busy ? "Creating…" : "Create album"}
               </button>
               <button type="button" onClick={() => setNaming(false)} disabled={busy}>
@@ -175,13 +181,13 @@ export function AlbumPicker({
         ) : (
           <ul className="picker-list">
             <li>
-              <button className="picker-row picker-new-row" onClick={() => setNaming(true)} disabled={busy} autoFocus>
+              <button className="picker-row picker-new-row" onClick={() => setNaming(true)} disabled={off} autoFocus>
                 <span className="album-name">New album…</span>
               </button>
             </li>
             {shown?.map((a) => (
               <li key={a.id}>
-                <button className="picker-row" onClick={() => pick(a)} disabled={busy}>
+                <button className="picker-row" onClick={() => pick(a)} disabled={off}>
                   <span className="album-name">{a.name}</span>
                   <span className="caption">
                     <span>{countLabel(a.count)}</span>
