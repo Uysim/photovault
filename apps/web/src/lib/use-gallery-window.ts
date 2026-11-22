@@ -30,6 +30,8 @@ export interface GalleryWindowApi {
   refresh(): Promise<void>;
   refreshAfterUpload(): void;
   remove(id: string): void;
+  /** Drop several items at once and refetch the timeline once. */
+  removeMany(ids: string[]): void;
 }
 
 const REFRESH_DEBOUNCE_MS = 300;
@@ -43,15 +45,22 @@ async function getJson<T>(url: string): Promise<T | null> {
   }
 }
 
-const pageUrl = (cursor?: string, dir?: "newer" | "older") => {
+const pageUrl = (cursor?: string, dir?: "newer" | "older", albumId?: string) => {
   const q = new URLSearchParams();
+  if (albumId) q.set("albumId", albumId);
   if (cursor) q.set("cursor", cursor);
   if (cursor && dir) q.set("dir", dir);
   const s = q.toString();
   return `/api/media${s ? `?${s}` : ""}`;
 };
 
-export function useGalleryWindow(enabled: boolean): GalleryWindowApi {
+export function useGalleryWindow(enabled: boolean, albumId?: string): GalleryWindowApi {
+  // The empty string means "no album".
+  const scope = albumId || undefined;
+  // Read by async callbacks so a stale closure can never request the wrong scope.
+  const scopeRef = useRef(scope);
+  scopeRef.current = scope;
+  const prevScope = useRef(scope);
   const [win, setWinState] = useState<GalleryWindow>(emptyWindow);
   const [timeline, setTimeline] = useState<TimelineBucket[]>([]);
   const [tz, setTz] = useState<string>(() => currentTimeZone());
@@ -78,7 +87,10 @@ export function useGalleryWindow(enabled: boolean): GalleryWindowApi {
 
   const fetchTimeline = useCallback(async (zone: string) => {
     const seq = ++timelineSeq.current;
-    const data = await getJson<MediaTimeline>(`/api/media/timeline?tz=${encodeURIComponent(zone)}`);
+    const album = scopeRef.current;
+    const data = await getJson<MediaTimeline>(
+      `/api/media/timeline?tz=${encodeURIComponent(zone)}${album ? `&albumId=${encodeURIComponent(album)}` : ""}`,
+    );
     if (data && seq === timelineSeq.current) setTimeline(data.buckets);
   }, []);
 
@@ -90,7 +102,7 @@ export function useGalleryWindow(enabled: boolean): GalleryWindowApi {
       resetting.current = true;
       setLoading(true);
       if (withTimeline) void fetchTimeline(zone);
-      const page = await getJson<MediaPage>(pageUrl(cursor ?? undefined));
+      const page = await getJson<MediaPage>(pageUrl(cursor ?? undefined, undefined, scopeRef.current));
       if (g !== gen.current) return;
       if (page) setWin(startWindow(page, cursor !== null));
       loadErrorRef.current = page === null;
@@ -103,8 +115,14 @@ export function useGalleryWindow(enabled: boolean): GalleryWindowApi {
 
   useEffect(() => {
     if (!enabled) return;
+    if (prevScope.current !== scope) {
+      // Scope changed: drop the previous album's items and any pending upload refresh.
+      prevScope.current = scope;
+      if (refreshTimer.current) clearTimeout(refreshTimer.current);
+      setWin(emptyWindow);
+    }
     void reset(null, tzRef.current, true);
-  }, [enabled, reset]);
+  }, [enabled, reset, scope, setWin]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -135,7 +153,7 @@ export function useGalleryWindow(enabled: boolean): GalleryWindowApi {
       const g = gen.current;
       inflight.current[dir] = true;
       try {
-        const data = await getJson<MediaPage>(pageUrl(cursor, dir));
+        const data = await getJson<MediaPage>(pageUrl(cursor, dir, scopeRef.current));
         if (!data || g !== gen.current) return;
         const now = winRef.current;
         if ((dir === "older" ? now.olderCursor : now.newerCursor) !== cursor) return;
@@ -167,7 +185,7 @@ export function useGalleryWindow(enabled: boolean): GalleryWindowApi {
       }
       const g = gen.current;
       void fetchTimeline(tzRef.current);
-      const data = await getJson<MediaPage>(pageUrl());
+      const data = await getJson<MediaPage>(pageUrl(undefined, undefined, scopeRef.current));
       if (!data || g !== gen.current || resetting.current) return;
       setWin(mergeNewest(winRef.current, data));
       // The window is healthy and this fetch succeeded: drop any stale error from a failed jump.
@@ -179,6 +197,17 @@ export function useGalleryWindow(enabled: boolean): GalleryWindowApi {
   const remove = useCallback(
     (id: string) => {
       setWin(removeItem(winRef.current, id));
+      void fetchTimeline(tzRef.current);
+    },
+    [fetchTimeline, setWin],
+  );
+
+  const removeMany = useCallback(
+    (ids: string[]) => {
+      if (ids.length === 0) return;
+      let next = winRef.current;
+      for (const id of ids) next = removeItem(next, id);
+      setWin(next);
       void fetchTimeline(tzRef.current);
     },
     [fetchTimeline, setWin],
@@ -199,5 +228,6 @@ export function useGalleryWindow(enabled: boolean): GalleryWindowApi {
     refresh,
     refreshAfterUpload,
     remove,
+    removeMany,
   };
 }
