@@ -5,10 +5,16 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { groupByDay, monthOf, type Album, type MediaItem, type TimelineBucket } from "@photovault/shared";
 import { authClient } from "@/lib/auth-client";
-import { getAlbum } from "@/lib/albums-api";
+import { ApiError, getAlbum, removeFromAlbum } from "@/lib/albums-api";
+import { countLabel } from "@/lib/count-label";
 import { useGalleryWindow } from "@/lib/use-gallery-window";
 import { uploadFile, validateFile } from "@/lib/upload";
+import { AlbumActions } from "./album-actions";
+import { AlbumPicker } from "./album-picker";
+import { Notice, useNotice } from "./notice";
+import { SelectBar } from "./select-bar";
 import { TimelineRail, type RailPosition } from "./timeline-rail";
+import { useSelection } from "./use-selection";
 
 type UploadRow = { key: string; name: string; progress: number; status: "uploading" | "done" | "error"; error?: string };
 const MAX_PARALLEL = 3;
@@ -73,8 +79,8 @@ export function GalleryView({ albumId }: { albumId?: string } = {}) {
     setAlbumState({ status: "loading" });
     getAlbum(albumId).then(
       (album) => live && setAlbumState({ status: "ready", album }),
-      // albums-api throws `Could not load album (<status>)`; a 404 covers missing and not-owned alike.
-      (e: unknown) => live && setAlbumState({ status: e instanceof Error && e.message.endsWith("(404)") ? "missing" : "error" }),
+      // A 404 covers missing and not-owned alike.
+      (e: unknown) => live && setAlbumState({ status: e instanceof ApiError && e.status === 404 ? "missing" : "error" }),
     );
     return () => {
       live = false;
@@ -216,8 +222,22 @@ export function GalleryView({ albumId }: { albumId?: string } = {}) {
   );
 
   useEffect(() => {
-    if (inAlbum) return; // no uploading into an album: upload to the library, then add
     const hasFiles = (e: DragEvent) => !!e.dataTransfer?.types.includes("Files");
+    if (inAlbum) {
+      // No uploading into an album (upload to the library, then add), but still stop the
+      // browser from navigating away to a file dropped on the page.
+      const refuse = (e: DragEvent) => {
+        if (!hasFiles(e)) return;
+        e.preventDefault();
+        if (e.dataTransfer) e.dataTransfer.dropEffect = "none";
+      };
+      window.addEventListener("dragover", refuse);
+      window.addEventListener("drop", refuse);
+      return () => {
+        window.removeEventListener("dragover", refuse);
+        window.removeEventListener("drop", refuse);
+      };
+    }
     const over = (e: DragEvent) => {
       if (!hasFiles(e)) return;
       e.preventDefault();
@@ -251,12 +271,67 @@ export function GalleryView({ albumId }: { albumId?: string } = {}) {
     setOpen(null);
   }
 
+  // Album membership: the picker (from the selection or the viewer) and removing from this album.
+  // Removing only unlinks; deleting a photo is the viewer's separate Delete.
+  const [picking, setPicking] = useState<{ ids: string[]; fromSelection: boolean } | null>(null);
+  const selection = useSelection(!!picking);
+  const [selectBusy, setSelectBusy] = useState(false);
+  const [selectError, setSelectError] = useState<string | null>(null);
+  const [viewerError, setViewerError] = useState<string | null>(null);
+  const { notice, show: showNotice } = useNotice();
+
+  const exitSelect = selection.exit;
+  // Escape leaves select mode inside useSelection; clear a leftover error however it was left.
   useEffect(() => {
-    if (!open) return;
+    if (!selection.active) setSelectError(null);
+  }, [selection.active]);
+
+  function picked(album: Album, created: boolean, count: number) {
+    if (picking?.fromSelection) exitSelect();
+    setPicking(null);
+    showNotice({
+      text: created ? `Created “${album.name}” with ${countLabel(count)}.` : `Added ${countLabel(count)} to “${album.name}”.`,
+      href: `/albums/${album.id}`,
+      linkText: "Open album",
+    });
+  }
+
+  async function unlink(ids: string[]) {
+    await removeFromAlbum(albumId!, ids);
+    gallery.removeMany(ids);
+  }
+
+  async function removeSelected() {
+    setSelectError(null);
+    setSelectBusy(true);
+    try {
+      await unlink([...selection.ids]);
+      exitSelect();
+    } catch (e) {
+      setSelectError(e instanceof Error ? e.message : "Could not remove from album");
+    } finally {
+      setSelectBusy(false);
+    }
+  }
+
+  async function removeOpen(item: MediaItem) {
+    setViewerError(null);
+    try {
+      await unlink([item.id]);
+      setOpen(null);
+    } catch (e) {
+      setViewerError(e instanceof Error ? e.message : "Could not remove from album");
+    }
+  }
+
+  useEffect(() => setViewerError(null), [open]);
+
+  useEffect(() => {
+    if (!open || picking) return; // the picker owns Escape while it is up
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(null);
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
+  }, [open, picking]);
 
   const fmtDate = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
   const uploading = uploads.some((u) => u.status === "uploading");
@@ -295,9 +370,17 @@ export function GalleryView({ albumId }: { albumId?: string } = {}) {
         ) : (
           <h1>PhotoVault</h1>
         )}
-        {/* Album actions (select, rename, delete album) belong in this bar too. */}
+        {inAlbum && (
+          <div className="bar-actions">
+            {items.length > 0 && !selection.active && <button onClick={selection.start}>Select</button>}
+            {albumState.status === "ready" && (
+              <AlbumActions album={albumState.album} onRenamed={(album) => setAlbumState({ status: "ready", album })} />
+            )}
+          </div>
+        )}
         {!inAlbum && (
           <div className="bar-actions">
+            {items.length > 0 && !selection.active && <button onClick={selection.start}>Select</button>}
             <Link className="btn" href="/albums">Albums</Link>
             {(session.user as { role?: string }).role === "admin" && <a className="btn" href="/admin">Invites</a>}
             <button className="primary" onClick={() => fileInput.current?.click()}>Upload</button>
@@ -318,7 +401,7 @@ export function GalleryView({ albumId }: { albumId?: string } = {}) {
       </div>
       {/* Before the page in the DOM so Tab reaches the rail ahead of the tiles; it is position: fixed. */}
       {!open && <TimelineRail buckets={timeline} active={active} onJump={onJump} onJumpNewest={onJumpNewest} />}
-      {dragging && <div className="drop-overlay">Drop to add to the album</div>}
+      {dragging && <div className="drop-overlay">Drop to add to your library</div>}
       <div className={`page${timeline.length > 0 ? " with-rail" : ""}`}>
         {!inAlbum && (
         <div className={`dropstrip${dragging || uploading ? " active" : ""}`}>
@@ -357,7 +440,12 @@ export function GalleryView({ albumId }: { albumId?: string } = {}) {
             <div className="grid">
               {day.items.map((i) => (
                 <div key={i.id} className="cell" data-id={i.id}>
-                  <button className="tile" onClick={() => setOpen(i)} aria-label={`Open ${i.filename}`}>
+                  <button
+                    className="tile"
+                    {...(selection.active
+                      ? { onClick: () => selection.toggle(i.id), "aria-pressed": selection.ids.has(i.id), "aria-label": `Select ${i.filename}` }
+                      : { onClick: () => setOpen(i), "aria-label": `Open ${i.filename}` })}
+                  >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={i.thumbUrl} alt="" loading="lazy" draggable={false} />
                   </button>
@@ -399,6 +487,12 @@ export function GalleryView({ albumId }: { albumId?: string } = {}) {
             <div className="viewer-bar">
               <span className="name">{open.filename} · {fmtDate(open.takenAt)}</span>
               <span className="bar-actions">
+                {viewerError && <span className="error" role="alert">{viewerError}</span>}
+                {inAlbum ? (
+                  <button className="primary" onClick={() => void removeOpen(open)}>Remove from album</button>
+                ) : (
+                  <button onClick={() => setPicking({ ids: [open.id], fromSelection: false })}>Add to album…</button>
+                )}
                 <button className="danger" onClick={() => remove(open)}>Delete</button>
                 <button onClick={() => setOpen(null)} autoFocus>Close</button>
               </span>
@@ -406,6 +500,26 @@ export function GalleryView({ albumId }: { albumId?: string } = {}) {
           </div>
         </div>
       )}
+      {selection.active && (
+        <SelectBar
+          count={selection.ids.size}
+          inAlbum={inAlbum}
+          busy={selectBusy}
+          error={selectError}
+          onCancel={exitSelect}
+          onAdd={() => setPicking({ ids: [...selection.ids], fromSelection: true })}
+          onRemove={() => void removeSelected()}
+        />
+      )}
+      {picking && (
+        <AlbumPicker
+          mediaIds={picking.ids}
+          excludeAlbumId={albumId}
+          onDone={(album, created) => picked(album, created, picking.ids.length)}
+          onClose={() => setPicking(null)}
+        />
+      )}
+      <Notice notice={notice} />
     </>
   );
 }

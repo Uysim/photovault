@@ -5,8 +5,7 @@ import { useRouter } from "next/navigation";
 import { ALBUM_NAME_MAX, type Album } from "@photovault/shared";
 import { authClient } from "@/lib/auth-client";
 import { createAlbum, listAlbums } from "@/lib/albums-api";
-
-const countLabel = (n: number) => `${n} ${n === 1 ? "item" : "items"}`;
+import { countLabel } from "@/lib/count-label";
 
 export default function AlbumsPage() {
   const router = useRouter();
