@@ -78,7 +78,7 @@ Hanken Grotesk via `@expo-google-fonts/hanken-grotesk`. Title 24/30 bold (empty 
 
 ## Layout
 
-Full-bleed gallery, 3px gaps, square tiles. Upload status is a rounded panel above the grid; sign-in is a centered column (max 480) on the cloth. Safe areas come from the stack and `SafeAreaView`.
+Full-bleed gallery, 3px gaps, square tiles, grouped under day headings; a 32px strip on the right edge is reserved for the timeline rail. Upload status is a rounded panel above the grid; sign-in is a centered column (max 480) on the cloth. Safe areas come from the stack and `SafeAreaView`.
 
 ## Elevation & Depth
 
@@ -93,6 +93,8 @@ Tiles nearly square (2px). Controls 10px radius; header pills fully rounded (18p
 - **Button** (`src/ui.tsx`): primary gold, quiet (ink text, transparent), danger (coral text). 48px tall; compact header pills 36px with 6px hit slop.
 - **Field:** Black Page fill, Cloth Line border, 52px, gold caret.
 - **Upload panel:** current file name, "N left", 4px gold progress; failures in coral with Retry / Dismiss.
+- **Day heading:** one per day (e.g. "Sat, 14 Mar 2026"), 15 semibold dim ink on the cloth, 12px side padding. Sticky: the current day stays pinned at the top while its rows scroll.
+- **Timeline rail:** 32px touch strip down the right edge (above the bottom safe area), clear of the tiles. A Latest control (bar and arrow), a 1px line with 5px month ticks and 9px year ticks, 10px tabular year labels and a 10px by 3px thumb that tracks the scroll. Idle at 0.55 opacity in dim ink; touching it lights it to full ink. Dragging shows a month bubble (Black Page, gold border) left of the strip, turns the thumb gold, and jumps on release; a system cancel does not jump. Year labels and Latest are buttons with accessibility labels, the screen-reader path. Absent while the library is empty.
 - **Empty and error states:** 24px title, dim body, one primary button.
 
 ## Do's and Don'ts

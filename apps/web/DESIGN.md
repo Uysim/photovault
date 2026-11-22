@@ -106,7 +106,7 @@ components:
 
 PhotoVault is the album the group keeps together, not a file manager. The world is the 1960s-80s photo album: deep bottle-green album cloth around black card pages that make photographs glow, each print seated in four photo corners, captions in small white ink. It lends palette, type, density and one signature move to a working screen; layout, navigation and controls stay ordinary web conventions (a top bar, a drop strip, buttons that look like buttons). Dark only, by intent: the scene of use is an evening at a laptop.
 
-The build follows the seed with deliberate deviations. Frame numbers were dropped from captions because they would shift as uploads arrive; captions carry the date and, for video, the duration. The viewer modal stays dark (near-black over the cloth) and closes on Escape as well as on backdrop click. Login and admin inherit the same shell and controls.
+The build follows the seed with deliberate deviations. Frame numbers were dropped from captions because they would shift as uploads arrive; captions carry only the video duration; the date moved to per-day headings. The viewer modal stays dark (near-black over the cloth) and closes on Escape as well as on backdrop click. Login and admin inherit the same shell and controls.
 
 **Key Characteristics:**
 - Committed shell: green cloth around black pages, not a grey screen with one accent.
@@ -148,14 +148,15 @@ Strategy: Committed shell, restrained pages. Green owns the outside, near-black 
 - **Body** (400, 1rem, 1.5): default text; empty-state copy capped at 52ch.
 - **Label** (600, 0.9375rem): buttons.
 - **Queue** (400, 0.875rem): upload rows, viewer bar.
-- **Caption** (400, 0.75rem, +0.04em, tabular numerals): date and video duration under each tile.
+- **Caption** (400, 0.75rem, +0.04em, tabular numerals): video duration under each tile.
+- **Day heading** (600, 0.875rem, +0.01em): the date above each day's tiles.
 
 ### Named Rules
-**The Tabular-Ink Rule.** Dates, durations and progress percentages use tabular numerals so changing values do not jitter.
+**The Tabular-Ink Rule.** Durations, rail labels and progress percentages use tabular numerals so changing values do not jitter.
 
 ## Layout
 
-One centered shell (max 1200px) with page padding clamp(12px, 3vw, 32px). Top bar (wordmark left, actions right, wrapping) over one black page that contains the drop strip (doubling as the upload queue) and the thumbnail grid. Grid is auto-fill with 150px minimum cells (104px under 520px), gaps 22px by 16px (16px by 10px on small screens). Queue rows are three columns (name, progress, state); on small screens the progress bar drops to its own full-width row. Forms are single-column, max 320px. Spacing rhythm: 6, 8, 12, 16, 22, 48px.
+One centered shell (max 1200px) with page padding clamp(12px, 3vw, 32px). Top bar (wordmark left, actions right, wrapping) over one black page that contains the drop strip (doubling as the upload queue) and the thumbnail grid. Grid is auto-fill with 150px minimum cells (104px under 520px), gaps 22px by 16px (16px by 10px on small screens). Queue rows are three columns (name, progress, state); on small screens the progress bar drops to its own full-width row. The gallery is grouped by day; a fixed timeline rail sits on the viewport's right edge (44px wide, 40px under 520px) and the top bar and page keep a 64px gutter (48px on small screens) clear of it. Forms are single-column, max 320px. Spacing rhythm: 6, 8, 12, 16, 22, 48px.
 
 ## Elevation & Depth
 
@@ -185,7 +186,14 @@ Prints are square (0px) and are held by four 16px triangular corner mounts (22px
 - Dashed Corner Mount border, dim text; active (dragging or uploading) turns border gold and text White Ink. Rows show name (ellipsized), 6px progress bar (gold fill on Page Raise track), tabular state; failures collapse to one row in Error Coral. Full-screen drop overlay: cloth wash with 3px dashed gold border.
 
 ### Photo tile and caption
-- Square, object-fit cover thumbnail on Page Raise, corner mounts overlaid. Caption below in two spans (date, and `Video Ns` for video), dim and tracked. No frame numbers.
+- Square, object-fit cover thumbnail on Page Raise, corner mounts overlaid. Caption below only for video (`Video Ns`), dim and tracked. No frame numbers, no per-tile date.
+
+### Day headings
+- One `h2` per day (e.g. "Sat, 14 Mar 2026", in the viewer's time zone) in White Ink Dim, 600 0.875rem. Sticky at the top of the scroll on the Black Page fill, so the current date stays pinned while its tiles scroll under it; days sit 12px apart.
+
+### Timeline rail
+- Fixed down the right edge from 76px below the top to 16px above the bottom: a "Latest" button, then a 1px Corner Mount line with 4px month ticks and 10px year ticks, tabular year labels (0.6875rem, 600) and a 9px by 3px thumb that follows the scroll position. Quiet at 55% opacity, full on hover, focus or drag.
+- Press or drag the track to scrub: a bubble with the month (e.g. "Mar 2020") appears left of the thumb, the thumb turns gold, and release jumps there; Escape cancels. A tap on a year label lands on that year's newest month. Labels are buttons, so Tab then Enter works too. Hidden while the library is empty.
 
 ### Viewer
 - Near-black backdrop, media contained to 95vw by viewport minus 110px, filename and date in a dim bar with a danger Delete. Closes on backdrop click or Escape.
@@ -193,7 +201,7 @@ Prints are square (0px) and are held by four 16px triangular corner mounts (22px
 ## Do's and Don'ts
 
 ### Do:
-- **Do** let corner mounts and the date caption be the only world detail on a cell.
+- **Do** let corner mounts and the video-duration caption be the only world detail on a cell.
 - **Do** reserve gold for press, focus, selection and progress.
 - **Do** keep upload progress, failure and retry unambiguous in the drop strip.
 - **Do** keep the viewer dark and closable by Escape.

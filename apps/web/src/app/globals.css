@@ -13,6 +13,10 @@
   --gold-ink: #1c1405;
   --error: #f19a88;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --pad-x: clamp(12px, 3vw, 32px);
+  /* space kept clear at the viewport's right edge for the timeline rail */
+  --rail-w: 44px;
+  --rail-gap: 64px;
   color-scheme: dark;
 }
 
@@ -27,7 +31,7 @@ body {
   font-family: var(--font-ui), system-ui, sans-serif;
   font-size: 16px;
   line-height: 1.5;
-  padding: 20px clamp(12px, 3vw, 32px) 48px;
+  padding: 20px var(--pad-x) 48px;
 }
 .shell { max-width: 1200px; margin-inline: auto; }
 
@@ -84,6 +88,8 @@ progress::-webkit-progress-value { background: var(--gold); transition: width 0.
 progress::-moz-progress-bar { background: var(--gold); }
 
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 22px 16px; }
+.day + .day { margin-top: 12px; }
+.day-heading { position: sticky; top: 0; z-index: 2; background: var(--page); color: var(--ink-dim); font-size: 0.875rem; font-weight: 600; letter-spacing: 0.01em; margin: 0 0 12px; padding: 10px 0 8px; }
 .cell { display: grid; gap: 6px; min-width: 0; }
 .tile { position: relative; aspect-ratio: 1; padding: 0; border: 0; border-radius: 0; background: var(--page-raise); overflow: hidden; display: block; min-height: 0; }
 .tile:hover { background: var(--page-raise); }
@@ -104,6 +110,40 @@ progress::-moz-progress-bar { background: var(--gold); }
 .caption span { white-space: nowrap; }
 .empty { color: var(--ink-dim); max-width: 52ch; margin: 24px 0; }
 .more { display: flex; justify-content: center; margin-top: 28px; }
+.more.newer { margin: 0 0 20px; }
+/* scroll position is kept by hand when newer items are prepended; native anchoring would double it */
+.gallery { overflow-anchor: none; }
+
+/* top bar and page edges stay clear of the rail: only the part of --rail-gap the body padding and shell margin don't already cover */
+.with-rail { margin-right: max(0px, var(--rail-gap) - var(--pad-x) - max(0px, (100vw - 2 * var(--pad-x) - 1200px) / 2)); }
+
+/* timeline rail: quiet ink at rest, brighter when touched, gold while dragging */
+.rail {
+  position: fixed; z-index: 3; top: 76px; bottom: 16px; right: max(4px, env(safe-area-inset-right));
+  width: var(--rail-w); display: flex; flex-direction: column; gap: 8px;
+  color: var(--ink-dim); opacity: 0.55; transition: opacity 0.2s var(--ease);
+  user-select: none; -webkit-user-select: none;
+}
+.rail:hover, .rail:focus-within, .rail.dragging { opacity: 1; }
+.rail button { font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.04em; font-variant-numeric: tabular-nums; min-height: 0; border: 0; border-radius: 4px; color: inherit; background: transparent; }
+.rail button:hover { background: transparent; color: var(--ink); }
+.rail button:focus-visible { outline-offset: 1px; color: var(--ink); }
+.rail-latest { padding: 4px 0; justify-content: center; width: 100%; flex: none; }
+.rail-track { position: relative; flex: 1; min-height: 0; touch-action: none; cursor: ns-resize; }
+.rail-line { position: absolute; top: 0; bottom: 0; right: 6px; width: 1px; background: var(--corner); }
+.rail-tick { position: absolute; right: 6px; width: 4px; height: 1px; background: var(--corner); opacity: 0.6; pointer-events: none; }
+.rail-tick.year { width: 10px; opacity: 1; }
+.rail-year { position: absolute; right: 14px; height: 16px; padding: 0 2px; line-height: 16px; cursor: inherit; }
+.rail-thumb {
+  position: absolute; top: -1px; right: 2px; width: 9px; height: 3px; border-radius: 2px;
+  background: var(--ink); pointer-events: none; transition: transform 0.15s var(--ease);
+}
+.rail.dragging .rail-thumb { background: var(--gold); transition: none; }
+.rail-bubble {
+  position: absolute; top: -14px; right: calc(100% + 8px); white-space: nowrap; pointer-events: none;
+  padding: 4px 10px; border-radius: 6px; background: var(--page-raise); border: 1px solid var(--gold);
+  color: var(--ink); font-size: 0.875rem; font-weight: 600; font-variant-numeric: tabular-nums;
+}
 
 .drop-overlay { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; font-size: 1.5rem; font-weight: 700; background: #12251ee6; color: var(--ink); border: 3px dashed var(--gold); margin: 12px; pointer-events: none; }
 
@@ -117,6 +157,8 @@ progress::-moz-progress-bar { background: var(--gold); }
   .grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 16px 10px; }
   .upload-row { grid-template-columns: minmax(0, 1fr) 7ch; }
   .upload-row progress { grid-column: 1 / -1; grid-row: 2; }
+  :root { --rail-w: 40px; --rail-gap: 48px; }
+  .rail-year { right: 11px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

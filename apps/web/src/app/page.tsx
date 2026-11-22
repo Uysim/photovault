@@ -1,67 +1,163 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Component, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import type { MediaItem, MediaPage } from "@photovault/shared";
+import { groupByDay, monthOf, type MediaItem, type TimelineBucket } from "@photovault/shared";
 import { authClient } from "@/lib/auth-client";
+import { useGalleryWindow } from "@/lib/use-gallery-window";
 import { uploadFile, validateFile } from "@/lib/upload";
+import { TimelineRail, type RailPosition } from "./timeline-rail";
 
 type UploadRow = { key: string; name: string; progress: number; status: "uploading" | "done" | "error"; error?: string };
 const MAX_PARALLEL = 3;
+// Start fetching the next page this far before its sentinel scrolls into view.
+const PREFETCH_MARGIN = "800px 0px";
+
+/**
+ * Keeps the viewport still when newer items are prepended. getSnapshotBeforeUpdate reads the
+ * document height right before React mutates the DOM; componentDidUpdate (layout phase, before
+ * paint) adds the growth to scrollTop. Only an update that lands while the window had a newer
+ * page pending (a `loadNewer` result) counts; resets/jumps and upload merges are left alone.
+ */
+class KeepScrollOnPrepend extends Component<{ items: MediaItem[]; hasNewer: boolean; children: ReactNode }> {
+  getSnapshotBeforeUpdate(prev: { items: MediaItem[]; hasNewer: boolean }): number | null {
+    const next = this.props.items;
+    if (!prev.hasNewer || prev.items === next || prev.items.length === 0) return null;
+    const k = next.length - prev.items.length;
+    if (k <= 0 || next[k]?.id !== prev.items[0].id) return null;
+    return document.documentElement.scrollHeight;
+  }
+
+  componentDidUpdate(_: unknown, __: unknown, before: number | null) {
+    if (before === null) return;
+    const delta = document.documentElement.scrollHeight - before;
+    if (delta > 0) window.scrollTo(0, window.scrollY + delta);
+  }
+
+  render() {
+    return <div className="gallery">{this.props.children}</div>;
+  }
+}
+
+/** Index of the first `.cell` whose bottom edge is below the viewport top (cells are in document order). */
+function firstVisibleCell(cells: NodeListOf<HTMLElement>): HTMLElement | null {
+  let lo = 0;
+  let hi = cells.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (cells[mid].getBoundingClientRect().bottom > 0) hi = mid;
+    else lo = mid + 1;
+  }
+  return cells[lo] ?? null;
+}
 
 export default function Gallery() {
   const router = useRouter();
   const { data: session, isPending } = authClient.useSession();
-  const [items, setItems] = useState<MediaItem[]>([]);
-  const [cursor, setCursor] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
+  const gallery = useGalleryWindow(!!session);
+  const { items, timeline, tz, hasOlder, hasNewer, loading, loadError, refresh: retryLoad, loadOlder, loadNewer, jumpTo, jumpToNewest, refreshAfterUpload: refresh } = gallery;
   const [open, setOpen] = useState<MediaItem | null>(null);
-  const loading = useRef(false);
+  const [active, setActive] = useState<RailPosition | null>(null);
+  const topSentinel = useRef<HTMLDivElement>(null);
+  const bottomSentinel = useRef<HTMLDivElement>(null);
+  const days = useMemo(() => groupByDay(items, tz), [items, tz]);
+
+  // id -> rail position: the item's month and its index among loaded items of that month.
+  const positions = useMemo(() => {
+    const byMonth = new Map<string, string[]>();
+    for (const i of items) {
+      const m = monthOf(i.takenAt, tz);
+      const key = `${m.year}-${m.month}`;
+      const list = byMonth.get(key);
+      if (list) list.push(i.id);
+      else byMonth.set(key, [i.id]);
+    }
+    const out = new Map<string, RailPosition>();
+    for (const [key, ids] of byMonth) {
+      const [year, month] = key.split("-").map(Number);
+      ids.forEach((id, idx) => out.set(id, { year, month, fraction: idx / ids.length }));
+    }
+    return out;
+  }, [items, tz]);
+
+  // Rail thumb follows the first visible cell; rAF-throttled, state only changes when the value does.
+  useEffect(() => {
+    if (!session) return;
+    let frame = 0;
+    const compute = () => {
+      frame = 0;
+      if (loading) return; // a jump is in flight: keep the optimistic position set by the jump
+      const cell = firstVisibleCell(document.querySelectorAll<HTMLElement>(".cell[data-id]"));
+      const next = cell ? positions.get(cell.dataset.id ?? "") ?? null : null;
+      setActive((prev) =>
+        prev === next || (prev && next && prev.year === next.year && prev.month === next.month && prev.fraction === next.fraction) ? prev : next,
+      );
+    };
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(compute);
+    };
+    schedule();
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule);
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
+    };
+  }, [session, positions, loading]);
+
+  // Automatic paging at both ends. Re-created whenever the list changes so a sentinel that is
+  // still in view after a page lands (short pages) triggers the next one.
+  useEffect(() => {
+    if (!hasNewer && !hasOlder) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (!e.isIntersecting) continue;
+          if (e.target === topSentinel.current) void loadNewer();
+          else if (e.target === bottomSentinel.current) void loadOlder();
+        }
+      },
+      { rootMargin: PREFETCH_MARGIN },
+    );
+    if (hasNewer && topSentinel.current) io.observe(topSentinel.current);
+    if (hasOlder && bottomSentinel.current) io.observe(bottomSentinel.current);
+    return () => io.disconnect();
+  }, [hasNewer, hasOlder, items, loadNewer, loadOlder]);
+
+  // After a jump lands, pin the target month's first heading to the viewport top (before paint),
+  // so the newer page fetched right after it prepends out of sight instead of filling the space
+  // above the target where the top bar and drop strip were.
+  const jumpLanding = useRef(false);
+  useLayoutEffect(() => {
+    if (!jumpLanding.current || loading) return;
+    jumpLanding.current = false;
+    const first = document.querySelector(".gallery .day");
+    if (first) window.scrollTo(0, first.getBoundingClientRect().top + window.scrollY);
+  }, [loading, items]);
+
+  const onJump = useCallback(
+    (bucket: TimelineBucket) => {
+      setActive({ year: bucket.year, month: bucket.month, fraction: 0 });
+      jumpLanding.current = true;
+      void jumpTo(bucket);
+      window.scrollTo(0, 0);
+    },
+    [jumpTo],
+  );
+
+  const onJumpNewest = useCallback(() => {
+    jumpLanding.current = false;
+    void jumpToNewest();
+    window.scrollTo(0, 0);
+  }, [jumpToNewest]);
   const [uploads, setUploads] = useState<UploadRow[]>([]);
   const [dragging, setDragging] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
-  const load = useCallback(async (c: string | null) => {
-    if (loading.current) return;
-    loading.current = true;
-    try {
-      const res = await fetch(`/api/media${c ? `?cursor=${encodeURIComponent(c)}` : ""}`);
-      if (res.ok) {
-        const page: MediaPage = await res.json();
-        setItems((prev) => (c ? [...prev, ...page.items] : page.items));
-        setCursor(page.nextCursor);
-        setDone(!page.nextCursor);
-      }
-    } finally {
-      loading.current = false;
-    }
-  }, []);
-
   useEffect(() => {
     if (!isPending && !session) router.replace("/login");
-    else if (session) load(null);
-  }, [isPending, session, router, load]);
-
-  // After an upload, fetch page 1 and merge in anything new. Keeps already-loaded pages,
-  // never affects an upload row's status, and is debounced so a batch causes few refetches.
-  // (A file with an old date sorts past page 1 and shows up under "Load more".)
-  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const refresh = useCallback(() => {
-    if (refreshTimer.current) clearTimeout(refreshTimer.current);
-    refreshTimer.current = setTimeout(async () => {
-      try {
-        const res = await fetch("/api/media");
-        if (!res.ok) return;
-        const page: MediaPage = await res.json();
-        setItems((prev) => {
-          const known = new Set(prev.map((i) => i.id));
-          const added = page.items.filter((i) => !known.has(i.id));
-          return added.length ? [...added, ...prev].sort((a, b) => b.takenAt.localeCompare(a.takenAt)) : prev;
-        });
-      } catch {
-        /* the upload itself succeeded; a later refresh or reload will show it */
-      }
-    }, 300);
-  }, []);
+  }, [isPending, session, router]);
 
   const addFiles = useCallback(
     (files: File[]) => {
@@ -123,7 +219,7 @@ export default function Gallery() {
   async function remove(item: MediaItem) {
     if (!confirm("Delete this item permanently?")) return;
     await fetch(`/api/media/${item.id}`, { method: "DELETE" });
-    setItems((prev) => prev.filter((i) => i.id !== item.id));
+    gallery.remove(item.id);
     setOpen(null);
   }
 
@@ -140,7 +236,7 @@ export default function Gallery() {
   if (!session) return null;
   return (
     <>
-      <div className="bar">
+      <div className={`bar${timeline.length > 0 ? " with-rail" : ""}`}>
         <h1>PhotoVault</h1>
         <div className="bar-actions">
           {(session.user as { role?: string }).role === "admin" && <a className="btn" href="/admin">Invites</a>}
@@ -159,8 +255,10 @@ export default function Gallery() {
           />
         </div>
       </div>
+      {/* Before the page in the DOM so Tab reaches the rail ahead of the tiles; it is position: fixed. */}
+      {!open && <TimelineRail buckets={timeline} active={active} onJump={onJump} onJumpNewest={onJumpNewest} />}
       {dragging && <div className="drop-overlay">Drop to add to the album</div>}
-      <div className="page">
+      <div className={`page${timeline.length > 0 ? " with-rail" : ""}`}>
         <div className={`dropstrip${dragging || uploading ? " active" : ""}`}>
           <p>Drop photos and videos anywhere on this page, or press Upload.</p>
           {uploads.length > 0 && (
@@ -184,26 +282,45 @@ export default function Gallery() {
             </div>
           )}
         </div>
-        <div className="grid">
-          {items.map((i) => (
-            <div key={i.id} className="cell">
-              <button className="tile" onClick={() => setOpen(i)} aria-label={`Open ${i.filename}`}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={i.thumbUrl} alt="" loading="lazy" draggable={false} />
-              </button>
-              <div className="caption">
-                <span>{fmtDate(i.takenAt)}</span>
-                {i.kind === "video" && <span>Video {Math.round((i.durationMs ?? 0) / 1000)}s</span>}
-              </div>
-            </div>
-          ))}
-        </div>
-        {!done && (
-          <div className="more">
-            <button onClick={() => load(cursor)}>Load more</button>
+        <KeepScrollOnPrepend items={items} hasNewer={hasNewer}>
+        {hasNewer && (
+          <div ref={topSentinel} className="more newer">
+            <button onClick={() => void loadNewer()}>Show newer</button>
           </div>
         )}
-        {items.length === 0 && done && <p className="empty">This page is empty. Add the first photos or videos with Upload or by dropping them here.</p>}
+        {days.map((day) => (
+          <section key={day.key} className="day">
+            <h2 className="day-heading">{day.label}</h2>
+            <div className="grid">
+              {day.items.map((i) => (
+                <div key={i.id} className="cell" data-id={i.id}>
+                  <button className="tile" onClick={() => setOpen(i)} aria-label={`Open ${i.filename}`}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={i.thumbUrl} alt="" loading="lazy" draggable={false} />
+                  </button>
+                  {i.kind === "video" && (
+                    <div className="caption">
+                      <span>Video {Math.round((i.durationMs ?? 0) / 1000)}s</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+        ))}
+        {hasOlder && (
+          <div ref={bottomSentinel} className="more">
+            <button onClick={() => void loadOlder()}>Load more</button>
+          </div>
+        )}
+        </KeepScrollOnPrepend>
+        {items.length === 0 && !hasOlder && !loading && loadError && (
+          <div className="empty" role="alert">
+            <p>Couldn&apos;t load your library.</p>
+            <button onClick={() => void retryLoad()}>Try again</button>
+          </div>
+        )}
+        {items.length === 0 && !hasOlder && !loading && !loadError && <p className="empty">This page is empty. Add the first photos or videos with Upload or by dropping them here.</p>}
       </div>
       {open && (
         <div className="modal" role="dialog" aria-modal="true" aria-label={open.filename} onClick={() => setOpen(null)}>
