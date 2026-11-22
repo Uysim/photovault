@@ -1,11 +1,14 @@
-import { and, asc, desc, eq, gt, lt, or } from "drizzle-orm";
+import { and, asc, desc, eq, exists, gt, lt, or, sql } from "drizzle-orm";
 import type { MediaItem, MediaPage } from "@photovault/shared";
 import { db, schema } from "@/db";
 import { json, unauthorized } from "@/lib/http";
+import { getOwnedAlbum } from "@/lib/albums";
 import { requireUser } from "@/lib/auth";
 import { presignGet } from "@/lib/s3";
 
 const PAGE = 60;
+
+const notFound = () => json({ error: "Not found" }, 404);
 
 type MediaRow = typeof schema.media.$inferSelect;
 
@@ -38,6 +41,15 @@ export async function GET(req: Request) {
   const newer = params.get("dir") === "newer";
   const m = schema.media;
   let where = and(eq(m.userId, user.id), eq(m.status, "ready"));
+  const albumId = params.get("albumId");
+  if (albumId) {
+    if (!(await getOwnedAlbum(user.id, albumId))) return notFound();
+    const am = schema.albumMedia;
+    where = and(
+      where,
+      exists(db.select({ one: sql`1` }).from(am).where(and(eq(am.albumId, albumId), eq(am.mediaId, m.id)))),
+    );
+  }
   if (cursor) {
     const [at, id = ""] = cursor.split("|");
     const d = new Date(at);
