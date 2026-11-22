@@ -1,9 +1,11 @@
 "use client";
 import { Component, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { groupByDay, monthOf, type MediaItem, type TimelineBucket } from "@photovault/shared";
+import { groupByDay, monthOf, type Album, type MediaItem, type TimelineBucket } from "@photovault/shared";
 import { authClient } from "@/lib/auth-client";
+import { getAlbum } from "@/lib/albums-api";
 import { useGalleryWindow } from "@/lib/use-gallery-window";
 import { uploadFile, validateFile } from "@/lib/upload";
 import { TimelineRail, type RailPosition } from "./timeline-rail";
@@ -51,9 +53,34 @@ function firstVisibleCell(cells: NodeListOf<HTMLElement>): HTMLElement | null {
   return cells[lo] ?? null;
 }
 
+type AlbumState = { status: "loading" } | { status: "ready"; album: Album } | { status: "missing" } | { status: "error" };
+
+/**
+ * The gallery: the member's whole library, or one album of it when `albumId` is set. Album mode
+ * scopes the window (headings, rail, paging) to the album and drops upload (photos are uploaded
+ * to the library, then added). Render it with `key={albumId}` so switching albums mounts fresh.
+ */
 export function GalleryView({ albumId }: { albumId?: string } = {}) {
   const router = useRouter();
   const { data: session, isPending } = authClient.useSession();
+  const inAlbum = !!albumId;
+  const [albumState, setAlbumState] = useState<AlbumState>({ status: "loading" });
+  const [albumTry, setAlbumTry] = useState(0);
+
+  useEffect(() => {
+    if (!session || !albumId) return;
+    let live = true;
+    setAlbumState({ status: "loading" });
+    getAlbum(albumId).then(
+      (album) => live && setAlbumState({ status: "ready", album }),
+      // albums-api throws `Could not load album (<status>)`; a 404 covers missing and not-owned alike.
+      (e: unknown) => live && setAlbumState({ status: e instanceof Error && e.message.endsWith("(404)") ? "missing" : "error" }),
+    );
+    return () => {
+      live = false;
+    };
+  }, [session, albumId, albumTry]);
+
   const gallery = useGalleryWindow(!!session, albumId);
   const { items, timeline, tz, hasOlder, hasNewer, loading, loadError, refresh: retryLoad, loadOlder, loadNewer, jumpTo, jumpToNewest, refreshAfterUpload: refresh } = gallery;
   const [open, setOpen] = useState<MediaItem | null>(null);
@@ -189,6 +216,7 @@ export function GalleryView({ albumId }: { albumId?: string } = {}) {
   );
 
   useEffect(() => {
+    if (inAlbum) return; // no uploading into an album: upload to the library, then add
     const hasFiles = (e: DragEvent) => !!e.dataTransfer?.types.includes("Files");
     const over = (e: DragEvent) => {
       if (!hasFiles(e)) return;
@@ -214,7 +242,7 @@ export function GalleryView({ albumId }: { albumId?: string } = {}) {
       window.removeEventListener("dragleave", leave);
       window.removeEventListener("drop", drop);
     };
-  }, [addFiles]);
+  }, [addFiles, inAlbum]);
 
   async function remove(item: MediaItem) {
     if (!confirm("Delete this item permanently?")) return;
@@ -234,31 +262,65 @@ export function GalleryView({ albumId }: { albumId?: string } = {}) {
   const uploading = uploads.some((u) => u.status === "uploading");
 
   if (!session) return null;
+  if (inAlbum && (albumState.status === "missing" || albumState.status === "error")) {
+    const missing = albumState.status === "missing";
+    return (
+      <>
+        <div className="bar">
+          <div className="bar-title">
+            <Link className="back" href="/albums">← Albums</Link>
+          </div>
+        </div>
+        <div className="page">
+          <div className="empty" role="alert">
+            <p>{missing ? "Album not found." : "Couldn't load this album."}</p>
+            {missing ? (
+              <Link className="btn" href="/albums">Back to albums</Link>
+            ) : (
+              <button onClick={() => setAlbumTry((n) => n + 1)}>Try again</button>
+            )}
+          </div>
+        </div>
+      </>
+    );
+  }
   return (
     <>
       <div className={`bar${timeline.length > 0 ? " with-rail" : ""}`}>
-        <h1>PhotoVault</h1>
-        <div className="bar-actions">
-          {(session.user as { role?: string }).role === "admin" && <a className="btn" href="/admin">Invites</a>}
-          <button className="primary" onClick={() => fileInput.current?.click()}>Upload</button>
-          <button onClick={() => authClient.signOut().then(() => router.push("/login"))}>Sign out</button>
-          <input
-            ref={fileInput}
-            type="file"
-            multiple
-            accept="image/*,video/*"
-            hidden
-            onChange={(e) => {
-              addFiles(Array.from(e.target.files ?? []));
-              e.target.value = "";
-            }}
-          />
-        </div>
+        {inAlbum ? (
+          <div className="bar-title">
+            <Link className="back" href="/albums">← Albums</Link>
+            <h1>{albumState.status === "ready" ? albumState.album.name : ""}</h1>
+          </div>
+        ) : (
+          <h1>PhotoVault</h1>
+        )}
+        {/* Album actions (select, rename, delete album) belong in this bar too. */}
+        {!inAlbum && (
+          <div className="bar-actions">
+            <Link className="btn" href="/albums">Albums</Link>
+            {(session.user as { role?: string }).role === "admin" && <a className="btn" href="/admin">Invites</a>}
+            <button className="primary" onClick={() => fileInput.current?.click()}>Upload</button>
+            <button onClick={() => authClient.signOut().then(() => router.push("/login"))}>Sign out</button>
+            <input
+              ref={fileInput}
+              type="file"
+              multiple
+              accept="image/*,video/*"
+              hidden
+              onChange={(e) => {
+                addFiles(Array.from(e.target.files ?? []));
+                e.target.value = "";
+              }}
+            />
+          </div>
+        )}
       </div>
       {/* Before the page in the DOM so Tab reaches the rail ahead of the tiles; it is position: fixed. */}
       {!open && <TimelineRail buckets={timeline} active={active} onJump={onJump} onJumpNewest={onJumpNewest} />}
       {dragging && <div className="drop-overlay">Drop to add to the album</div>}
       <div className={`page${timeline.length > 0 ? " with-rail" : ""}`}>
+        {!inAlbum && (
         <div className={`dropstrip${dragging || uploading ? " active" : ""}`}>
           <p>Drop photos and videos anywhere on this page, or press Upload.</p>
           {uploads.length > 0 && (
@@ -282,6 +344,7 @@ export function GalleryView({ albumId }: { albumId?: string } = {}) {
             </div>
           )}
         </div>
+        )}
         <KeepScrollOnPrepend items={items} hasNewer={hasNewer}>
         {hasNewer && (
           <div ref={topSentinel} className="more newer">
@@ -314,13 +377,20 @@ export function GalleryView({ albumId }: { albumId?: string } = {}) {
           </div>
         )}
         </KeepScrollOnPrepend>
-        {items.length === 0 && !hasOlder && !loading && loadError && (
+        {/* In an album, wait for the album itself: a missing one has its own state above. */}
+        {items.length === 0 && !hasOlder && !loading && loadError && (!inAlbum || albumState.status === "ready") && (
           <div className="empty" role="alert">
-            <p>Couldn&apos;t load your library.</p>
+            <p>{inAlbum ? "Couldn't load this album." : "Couldn't load your library."}</p>
             <button onClick={() => void retryLoad()}>Try again</button>
           </div>
         )}
-        {items.length === 0 && !hasOlder && !loading && !loadError && <p className="empty">This page is empty. Add the first photos or videos with Upload or by dropping them here.</p>}
+        {items.length === 0 && !hasOlder && !loading && !loadError && (
+          <p className="empty">
+            {inAlbum
+              ? "This album is empty. Add photos from your library."
+              : "This page is empty. Add the first photos or videos with Upload or by dropping them here."}
+          </p>
+        )}
       </div>
       {open && (
         <div className="modal" role="dialog" aria-modal="true" aria-label={open.filename} onClick={() => setOpen(null)}>
