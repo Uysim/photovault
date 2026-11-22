@@ -26,12 +26,13 @@ export function useNotice() {
 }
 
 /** Floats over the bottom of the screen; render it last so it sits above the content. */
-export function Notice({ notice, onDismiss }: { notice: NoticeContent | null; onDismiss: () => void }) {
+/** `bottom` overrides the default spot (just above the bottom safe area), e.g. to sit above a bar. */
+export function Notice({ notice, onDismiss, bottom }: { notice: NoticeContent | null; onDismiss: () => void; bottom?: number }) {
   const insets = useSafeAreaInsets();
   if (!notice) return null;
   const { action } = notice;
   return (
-    <View style={[s.slot, { bottom: 12 + insets.bottom }]} pointerEvents="box-none">
+    <View style={[s.slot, { bottom: bottom ?? 12 + insets.bottom }]} pointerEvents="box-none">
       <View style={s.notice} accessibilityLiveRegion="polite">
         <Text style={s.text}>{notice.text}</Text>
         {action && (

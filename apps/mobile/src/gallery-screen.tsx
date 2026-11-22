@@ -421,7 +421,7 @@ export function GalleryScreen({ albumId }: { albumId?: string } = {}) {
           ) : inAlbum ? (
             <View style={s.empty}>
               <Text style={s.emptyTitle}>This album is empty</Text>
-              <Text style={s.emptyBody}>Add photos from your library: long-press a photo there, then choose Add to album….</Text>
+              <Text style={s.emptyBody}>Add photos from your library.</Text>
             </View>
           ) : (
             <View style={s.empty}>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { KeyboardAvoidingView, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ALBUM_NAME_MAX } from "@photovault/shared";
 import { color, font, radius } from "./theme";
 import { Btn, Field } from "./ui";
@@ -31,6 +32,7 @@ export function NamePrompt({
   onSubmit: (name: string) => Promise<void>;
   onCancel: () => void;
 }) {
+  const insets = useSafeAreaInsets();
   const [value, setValue] = useState(initial);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -63,31 +65,39 @@ export function NamePrompt({
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={cancel} statusBarTranslucent>
-      <KeyboardAvoidingView style={s.backdrop} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={cancel} accessibilityLabel="Cancel" accessibilityRole="button" />
-        <View style={s.panel} accessibilityViewIsModal>
-          <Text style={s.title} accessibilityRole="header">
-            {title}
-          </Text>
-          <Field
-            value={value}
-            onChangeText={setValue}
-            placeholder="Album name"
-            accessibilityLabel="Album name"
-            maxLength={ALBUM_NAME_MAX}
-            autoFocus
-            editable={!busy}
-            returnKeyType="done"
-            onSubmitEditing={() => void submit()}
-          />
-          {error && (
-            <Text style={s.error} accessibilityRole="alert">
-              {error}
-            </Text>
-          )}
-          <View style={s.actions}>
-            <Btn kind="quiet" title="Cancel" onPress={cancel} disabled={busy} />
-            <Btn title={submitLabel} onPress={() => void submit()} busy={busy} disabled={!value.trim()} />
+      {/* "padding" on both platforms: it pads by the measured keyboard overlap, so it is right whether
+          or not the window resizes (Android edge-to-edge Modals may not). KAV sets its own
+          paddingBottom, so the spacing lives on the inner view. */}
+      <KeyboardAvoidingView style={s.fill} behavior="padding" keyboardVerticalOffset={0}>
+        <View style={[s.backdrop, { paddingTop: 24 + insets.top, paddingBottom: 24 + insets.bottom }]}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={cancel} accessibilityLabel="Cancel" accessibilityRole="button" />
+          <View style={s.panel} accessibilityViewIsModal>
+            {/* Scrolls when the keyboard leaves less room than the panel needs. */}
+            <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
+              <Text style={s.title} accessibilityRole="header">
+                {title}
+              </Text>
+              <Field
+                value={value}
+                onChangeText={setValue}
+                placeholder="Album name"
+                accessibilityLabel="Album name"
+                maxLength={ALBUM_NAME_MAX}
+                autoFocus
+                editable={!busy}
+                returnKeyType="done"
+                onSubmitEditing={() => void submit()}
+              />
+              {error && (
+                <Text style={s.error} accessibilityRole="alert">
+                  {error}
+                </Text>
+              )}
+              <View style={s.actions}>
+                <Btn kind="quiet" title="Cancel" onPress={cancel} disabled={busy} />
+                <Btn title={submitLabel} onPress={() => void submit()} busy={busy} disabled={!value.trim()} />
+              </View>
+            </ScrollView>
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -96,8 +106,10 @@ export function NamePrompt({
 }
 
 const s = StyleSheet.create({
-  backdrop: { flex: 1, justifyContent: "center", padding: 24, backgroundColor: color.scrim },
-  panel: { width: "100%", maxWidth: 480, alignSelf: "center", padding: 20, gap: 14, borderRadius: radius.panel, backgroundColor: color.page },
+  fill: { flex: 1 },
+  backdrop: { flex: 1, justifyContent: "center", paddingHorizontal: 24, backgroundColor: color.scrim },
+  panel: { flexShrink: 1, width: "100%", maxWidth: 480, alignSelf: "center", borderRadius: radius.panel, backgroundColor: color.page },
+  content: { padding: 20, gap: 14 },
   title: { fontFamily: font.bold, fontSize: 20, lineHeight: 26, color: color.ink },
   error: { fontFamily: font.regular, fontSize: 15, lineHeight: 21, color: color.error },
   actions: { flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-end", gap: 8 },

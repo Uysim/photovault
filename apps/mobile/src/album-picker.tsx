@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, KeyboardAvoidingView, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ALBUM_MEDIA_BATCH, ALBUM_NAME_MAX, type Album } from "@photovault/shared";
@@ -129,7 +129,10 @@ export function AlbumPicker({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={back} statusBarTranslucent>
-      <KeyboardAvoidingView style={s.backdrop} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      {/* "padding" on both platforms: it pads by the measured overlap between this view and the
+          keyboard, so it is right whether or not the window itself resizes (Android edge-to-edge
+          Modals draw under the system bars and may not). The view starts at the screen top, so no offset. */}
+      <KeyboardAvoidingView style={[s.backdrop, { paddingTop: insets.top + 24 }]} behavior="padding" keyboardVerticalOffset={0}>
         <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityLabel="Close" accessibilityRole="button" />
         <View style={[s.sheet, { paddingBottom: 16 + insets.bottom }]} accessibilityViewIsModal accessibilityState={{ busy }}>
           <View style={s.head}>
@@ -138,47 +141,51 @@ export function AlbumPicker({
             </Text>
             <Btn compact kind="quiet" title="Close" onPress={onClose} disabled={busy} />
           </View>
-          {error && (
-            <Text style={s.error} accessibilityRole="alert">
-              {error}
-            </Text>
-          )}
-          {naming ? (
-            <View style={s.form}>
-              <Field
-                value={name}
-                onChangeText={setName}
-                placeholder="New album name"
-                accessibilityLabel="New album name"
-                maxLength={ALBUM_NAME_MAX}
-                autoFocus
-                editable={!busy}
-                returnKeyType="done"
-                onSubmitEditing={create}
-              />
-              <View style={s.formActions}>
-                <Btn kind="quiet" title="Back" onPress={() => setNaming(false)} disabled={busy} />
-                <Btn title="Create album" onPress={create} busy={busy} disabled={off || !name.trim()} />
-              </View>
-            </View>
-          ) : (
-            <ScrollView style={s.list} contentContainerStyle={{ gap: 4 }}>
-              <Row title="New album…" plus onPress={() => setNaming(true)} disabled={off} />
-              {shown?.map((a) => (
-                <Row key={a.id} title={a.name} meta={countLabel(a.count)} cover={a.coverThumbUrl} onPress={() => pick(a)} disabled={off} />
-              ))}
-              {!shown && !loadError && <ActivityIndicator color={color.gold} style={{ marginVertical: 16 }} accessibilityLabel="Loading albums" />}
-              {loadError && (
-                <View style={s.loadError}>
-                  <Text style={s.error} accessibilityRole="alert">
-                    Couldn't load your albums.
-                  </Text>
-                  <Btn compact kind="quiet" title="Try again" onPress={() => void load()} />
+          {/* Everything under the title scrolls, so the field and its buttons stay reachable when
+              the keyboard leaves little room. */}
+          <ScrollView style={s.body} contentContainerStyle={s.bodyContent} keyboardShouldPersistTaps="handled">
+            {error && (
+              <Text style={s.error} accessibilityRole="alert">
+                {error}
+              </Text>
+            )}
+            {naming ? (
+              <View style={s.form}>
+                <Field
+                  value={name}
+                  onChangeText={setName}
+                  placeholder="New album name"
+                  accessibilityLabel="New album name"
+                  maxLength={ALBUM_NAME_MAX}
+                  autoFocus
+                  editable={!busy}
+                  returnKeyType="done"
+                  onSubmitEditing={create}
+                />
+                <View style={s.formActions}>
+                  <Btn kind="quiet" title="Back" onPress={() => setNaming(false)} disabled={busy} />
+                  <Btn title="Create album" onPress={create} busy={busy} disabled={off || !name.trim()} />
                 </View>
-              )}
-            </ScrollView>
-          )}
-          {busy && !naming && <ActivityIndicator color={color.gold} accessibilityLabel="Adding" />}
+              </View>
+            ) : (
+              <View style={{ gap: 4 }}>
+                <Row title="New album…" plus onPress={() => setNaming(true)} disabled={off} />
+                {shown?.map((a) => (
+                  <Row key={a.id} title={a.name} meta={countLabel(a.count)} cover={a.coverThumbUrl} onPress={() => pick(a)} disabled={off} />
+                ))}
+                {!shown && !loadError && <ActivityIndicator color={color.gold} style={{ marginVertical: 16 }} accessibilityLabel="Loading albums" />}
+                {loadError && (
+                  <View style={s.loadError}>
+                    <Text style={s.error} accessibilityRole="alert">
+                      Couldn't load your albums.
+                    </Text>
+                    <Btn compact kind="quiet" title="Try again" onPress={() => void load()} />
+                  </View>
+                )}
+              </View>
+            )}
+            {busy && !naming && <ActivityIndicator color={color.gold} accessibilityLabel="Adding" />}
+          </ScrollView>
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -228,7 +235,8 @@ function Row({
 const s = StyleSheet.create({
   backdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: color.scrim },
   sheet: {
-    maxHeight: "80%",
+    // Shrinks to the room left above the keyboard (or the screen), never past the top inset.
+    flexShrink: 1,
     paddingTop: 16,
     paddingHorizontal: 16,
     gap: 12,
@@ -241,7 +249,8 @@ const s = StyleSheet.create({
   error: { fontFamily: font.regular, fontSize: 15, lineHeight: 21, color: color.error },
   form: { gap: 12 },
   formActions: { flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-end", gap: 8 },
-  list: { flexGrow: 0 },
+  body: { flexGrow: 0, flexShrink: 1 },
+  bodyContent: { gap: 12 },
   row: { minHeight: 56, flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 6, paddingHorizontal: 4, borderRadius: radius.control },
   cover: { width: 44, height: 44, borderRadius: radius.tile, backgroundColor: color.cloth, overflow: "hidden" },
   coverImg: { width: 44, height: 44 },

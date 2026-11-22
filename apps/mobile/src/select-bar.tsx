@@ -28,7 +28,7 @@ export function SelectBar({
   const insets = useSafeAreaInsets();
   const none = count === 0;
   return (
-    <View style={[s.bar, { paddingBottom: 12 + insets.bottom }]} accessibilityLabel="Selection">
+    <View style={[s.bar, { paddingBottom: 12 + insets.bottom }]}>
       <View style={s.top}>
         <Text style={s.count} accessibilityLiveRegion="polite">
           {none ? "Choose photos and videos" : `${countLabel(count)} selected`}
