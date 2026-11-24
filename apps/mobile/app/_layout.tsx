@@ -40,9 +40,8 @@ export default function RootLayout() {
           contentStyle: { backgroundColor: color.cloth },
         }}
       >
-        <Stack.Screen name="index" options={{ title: "PhotoVault" }} />
-        <Stack.Screen name="albums" options={{ title: "Albums" }} />
-        <Stack.Screen name="album/[id]" options={{ title: "" }} />
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="album/[id]" options={{ title: "", headerBackTitle: "Albums" }} />
         <Stack.Screen name="sign-in" options={{ headerShown: false }} />
         <Stack.Screen
           name="viewer"

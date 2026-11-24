@@ -4,7 +4,7 @@ import { Image } from "expo-image";
 import { Stack, useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { groupByDay, type Album, type TimelineBucket } from "@photovault/shared";
-import { authClient } from "./api";
+import { AccountButton } from "./account-button";
 import { useAlbumActions } from "./album-actions";
 import { AlbumPicker } from "./album-picker";
 import { ApiError, getAlbum, removeFromAlbum } from "./albums-api";
@@ -297,15 +297,8 @@ export function GalleryScreen({ albumId }: { albumId?: string } = {}) {
                 headerRight: () => (selection.active ? null : albumActions.button),
               }
             : {
-                headerLeft: () =>
-                  selection.active ? null : <Btn compact kind="quiet" title="Sign out" onPress={() => authClient.signOut()} />,
-                headerRight: () =>
-                  selection.active ? null : (
-                    <View style={s.headerActions}>
-                      <Btn compact kind="quiet" title="Albums" onPress={() => router.push("/albums")} />
-                      <Btn compact title="Upload" onPress={pickAndUpload} />
-                    </View>
-                  ),
+                headerLeft: () => (selection.active ? null : <AccountButton />),
+                headerRight: () => (selection.active ? null : <Btn compact title="Upload" onPress={pickAndUpload} />),
               }
         }
       />
@@ -462,7 +455,6 @@ export function GalleryScreen({ albumId }: { albumId?: string } = {}) {
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: color.cloth },
   gallery: { flex: 1 },
-  headerActions: { flexDirection: "row", alignItems: "center", gap: 4 },
   panel: { margin: 12, marginTop: 4, padding: 14, gap: 12, borderRadius: radius.panel, backgroundColor: color.page },
   rowBetween: { flexDirection: "row", justifyContent: "space-between", gap: 12 },
   panelTitle: { flex: 1, fontFamily: font.semibold, fontSize: 15, color: color.ink },
