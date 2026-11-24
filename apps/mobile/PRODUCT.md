@@ -24,7 +24,7 @@ Expo (expo-router) app for iOS and Android. Sign-in via Better Auth with tokens 
 
 ## Capabilities and Constraints
 
-- Screens today: sign-in, gallery (index), full-screen viewer, upload from picker, personal albums (list, album view, select mode and album picker).
+- Screens today: sign-in, bottom tabs (Library, Albums), full-screen viewer, upload from picker, personal albums (list, album view, select mode and album picker).
 - Dark only (`userInterfaceStyle: dark`); portrait orientation; iOS supports tablet.
 - Android requests RECORD_AUDIO (video).
 - Not built, undecided: auto-backup, sharing albums with other members, quotas, resumable uploads for huge videos.

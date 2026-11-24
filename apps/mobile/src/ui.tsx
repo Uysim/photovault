@@ -64,7 +64,7 @@ export function Field({ inputRef, ...props }: TextInputProps & { inputRef?: (r: 
 
 const s = StyleSheet.create({
   btn: { minHeight: 48, paddingHorizontal: 20, borderRadius: radius.control, alignItems: "center", justifyContent: "center" },
-  compact: { minHeight: 36, paddingHorizontal: 14, borderRadius: 18 },
+  compact: { minHeight: 44, paddingHorizontal: 18, borderRadius: 22 },
   btnText: { fontFamily: font.bold, fontSize: 16 },
   field: {
     minHeight: 52,

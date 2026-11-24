@@ -3,11 +3,11 @@ import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, useWindowDime
 import { Image } from "expo-image";
 import { Stack, useFocusEffect, useRouter } from "expo-router";
 import type { Album } from "@photovault/shared";
-import { createAlbum, listAlbums } from "../src/albums-api";
-import { countLabel } from "../src/count-label";
-import { NamePrompt } from "../src/name-prompt";
-import { color, font, radius } from "../src/theme";
-import { Btn } from "../src/ui";
+import { createAlbum, listAlbums } from "../../src/albums-api";
+import { countLabel } from "../../src/count-label";
+import { NamePrompt } from "../../src/name-prompt";
+import { color, font, radius } from "../../src/theme";
+import { Btn } from "../../src/ui";
 
 const GAP = 12;
 const PAD = 12;
