@@ -1,4 +1,4 @@
-import { bigint, boolean, index, integer, pgEnum, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { bigint, boolean, index, integer, pgEnum, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
 
 // ---- Better Auth tables (verify with `npx @better-auth/cli generate` after upgrades) ----
 export const user = pgTable("user", {
@@ -81,4 +81,29 @@ export const media = pgTable(
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (t) => [index("media_user_taken_idx").on(t.userId, t.takenAt, t.id)],
+);
+
+export const album = pgTable(
+  "album",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [index("album_user_updated_idx").on(t.userId, t.updatedAt)],
+);
+
+export const albumMedia = pgTable(
+  "album_media",
+  {
+    albumId: text("album_id").notNull().references(() => album.id, { onDelete: "cascade" }),
+    mediaId: text("media_id").notNull().references(() => media.id, { onDelete: "cascade" }),
+    addedAt: timestamp("added_at").notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.albumId, t.mediaId] }),
+    index("album_media_media_idx").on(t.mediaId),
+  ],
 );

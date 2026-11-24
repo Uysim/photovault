@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import type { MediaTimeline } from "@photovault/shared";
 import { db } from "@/db";
 import { json, unauthorized } from "@/lib/http";
+import { getOwnedAlbum } from "@/lib/albums";
 import { requireUser } from "@/lib/auth";
 
 function validZone(tz: string | null): string {
@@ -21,7 +22,13 @@ export async function GET(req: Request) {
   const user = await requireUser(req);
   if (!user) return unauthorized();
 
-  const tz = validZone(new URL(req.url).searchParams.get("tz"));
+  const params = new URL(req.url).searchParams;
+  const tz = validZone(params.get("tz"));
+  const albumId = params.get("albumId");
+  if (albumId && !(await getOwnedAlbum(user.id, albumId))) return json({ error: "Not found" }, 404);
+  const albumFilter = albumId
+    ? sql`and exists (select 1 from album_media am where am.album_id = ${albumId} and am.media_id = media.id)`
+    : sql``;
 
   const query = (zone: string) => db.execute(sql`
     select
@@ -32,7 +39,7 @@ export async function GET(req: Request) {
     from (
       select date_trunc('month', taken_at at time zone 'UTC' at time zone ${zone}) as month_start, count(*) as count
       from media
-      where user_id = ${user.id} and status = 'ready'
+      where user_id = ${user.id} and status = 'ready' ${albumFilter}
       group by 1
     ) t
     order by month_start desc

@@ -52,3 +52,4 @@ export const signUpInput = z.object({
 });
 export * from "./timeline";
 export * from "./gallery-window";
+export * from "./album";

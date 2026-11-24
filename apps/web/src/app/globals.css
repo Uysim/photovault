@@ -110,6 +110,10 @@ form { display: grid; gap: 10px; max-width: 320px; }
 /* gallery */
 .bar { display: flex; flex-wrap: wrap; gap: 12px 16px; justify-content: space-between; align-items: center; margin-bottom: 16px; }
 .bar-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.bar-title { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: baseline; min-width: 0; }
+.bar-title h1 { overflow-wrap: anywhere; }
+.back { color: var(--ink-dim); font-size: 0.9375rem; font-weight: 600; text-decoration: none; white-space: nowrap; }
+.back:hover { color: var(--ink); }
 
 .page { background: var(--page); border: 1px solid var(--cloth-line); border-radius: 4px; padding: clamp(12px, 2.5vw, 24px); }
 .page + .page { margin-top: 16px; }
@@ -149,6 +153,69 @@ progress::-moz-progress-bar { background: var(--gold); }
 .caption { font-size: 0.75rem; letter-spacing: 0.04em; color: var(--ink-dim); font-variant-numeric: tabular-nums; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0 8px; }
 .caption span { white-space: nowrap; }
 .empty { color: var(--ink-dim); max-width: 52ch; margin: 24px 0; }
+
+/* albums list: each album is a mounted print (its cover) with the name and count in white ink below */
+.albums { list-style: none; margin: 0; padding: 0; }
+.album-card { display: grid; gap: 6px; min-width: 0; text-decoration: none; color: var(--ink); }
+.album-card:focus-visible { outline: none; }
+.album-card:hover .tile::after, .album-card:focus-visible .tile::after { --c: var(--gold); --s: 22px; }
+.album-name { font-size: 0.9375rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.album-card .caption { margin-top: -4px; }
+/* select mode: a quiet tick in the top-left corner; a selected print takes the gold corners */
+.tile[aria-pressed]::before {
+  content: ""; position: absolute; z-index: 1; top: 10px; left: 10px; width: 22px; height: 22px; border-radius: 50%;
+  border: 2px solid var(--ink); background: #0b0b0a80; color: var(--gold-ink);
+  display: grid; place-items: center; font-size: 0.8125rem; font-weight: 700; line-height: 1;
+  transition: background 0.2s var(--ease), border-color 0.2s var(--ease);
+}
+.tile[aria-pressed="true"]::before { content: "✓"; background: var(--gold); border-color: var(--gold); }
+.tile[aria-pressed="true"]::after { --c: var(--gold); --s: 22px; }
+.tile[aria-pressed="true"] img { opacity: 0.72; }
+.tile[aria-pressed]:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+
+.select-bar {
+  position: fixed; z-index: 5; left: 50%; bottom: 16px; transform: translateX(-50%);
+  width: min(calc(100% - 2 * var(--pad-x)), 760px);
+  display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between;
+  padding: 10px 12px 10px 18px; background: var(--page-raise); border: 1px solid var(--cloth-line); border-radius: 8px;
+}
+.select-count { font-weight: 600; font-variant-numeric: tabular-nums; }
+.select-bar .error { flex-basis: 100%; order: 3; font-size: 0.875rem; }
+body:has(.select-bar) { padding-bottom: 120px; }
+
+/* album picker: one short black page over the dimmed album */
+.picker-backdrop { z-index: 11; }
+.picker {
+  width: min(100%, 420px); max-height: min(80vh, 560px); overflow: auto;
+  background: var(--page); border: 1px solid var(--cloth-line); border-radius: 4px; padding: 20px;
+  display: grid; gap: 14px; align-content: start;
+}
+.picker-head { display: flex; gap: 12px; align-items: center; justify-content: space-between; }
+.picker-head h2 { font-size: 1.0625rem; margin: 0; }
+.picker .error { margin: 0; font-size: 0.9375rem; }
+.picker .hint { font-size: 0.875rem; }
+.picker-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.picker-row {
+  width: 100%; display: flex; gap: 12px; align-items: baseline; justify-content: space-between;
+  border-color: transparent; border-radius: 6px; padding: 10px 12px; min-height: 44px; text-align: left;
+}
+.picker-row:hover { border-color: var(--cloth-line); }
+.picker-row .album-name { min-width: 0; }
+.picker-new-row { color: var(--gold); }
+.picker-new-row:hover { border-color: var(--gold); }
+.picker-new { max-width: none; }
+.picker-new label { font-size: 0.875rem; font-weight: 600; }
+.picker-new input { width: 100%; }
+
+/* brief confirmations, above the select bar's spot */
+body:has(.select-bar) .notice-slot { bottom: 84px; }
+.notice-slot { position: fixed; z-index: 12; left: 50%; bottom: 24px; transform: translateX(-50%); width: max-content; max-width: calc(100% - 2 * var(--pad-x)); pointer-events: none; }
+.notice {
+  margin: 0; padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline;
+  background: var(--page-raise); border: 1px solid var(--gold); border-radius: 6px; font-size: 0.9375rem; pointer-events: auto;
+}
+.notice a { font-weight: 600; }
+
 .more { display: flex; justify-content: center; margin-top: 28px; }
 .more.newer { margin: 0 0 20px; }
 /* scroll position is kept by hand when newer items are prepended; native anchoring would double it */
